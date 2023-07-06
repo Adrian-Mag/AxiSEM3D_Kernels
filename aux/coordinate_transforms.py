@@ -24,7 +24,6 @@ def sph2cart(rad: float, lat: float, lon: float) -> np.ndarray:
     return np.asarray([x, y, z])
 
 
-
 def cart2sph(x: float, y: float, z: float) -> np.ndarray:
     """
     Convert Cartesian coordinates to spherical coordinates.
@@ -107,33 +106,26 @@ def geo2cyl(point: list, rotation_matrix: np.ndarray) -> list:
     return [s, z, phi]
 
 
-def cart2polar(s: float, z: float) -> list:
+def cart2polar(s: np.ndarray, z: np.ndarray) -> np.ndarray:
     """
     Transform in-plane cylindrical coordinates (cartesian) to polar coordinates.
 
     Args:
-        s (float): Distance from cylindrical axis in meters.
-        z (float): Distance along cylindrical axis in meters.
+        s (np.ndarray): Distance from cylindrical axis in meters.
+        z (np.ndarray): Distance along cylindrical axis in meters.
 
     Returns:
-        list: [radius, theta] in meters and radians.
+        np.ndarray: Array containing [radius, theta] in meters and radians.
     Raises:
-        ValueError: If `s` is not positive.
+        ValueError: If any element in `s` is not positive.
 
     """
-    if s < 0:
+    if np.any(s < 0):
         raise ValueError("Distance `s` must be non-negative.")
 
-    if s == 0:
-        if z > 0:
-            theta = np.pi / 2
-        elif z < 0:
-            theta = -np.pi / 2
-        else:
-            theta = 0
-        return [abs(z), theta]
-
+    theta = np.where(s == 0,
+                     np.where(z > 0, np.pi / 2, np.where(z < 0, -np.pi / 2, 0)),
+                     np.arctan(z / s))
     r = np.sqrt(s**2 + z**2)
-    theta = np.arctan(z / s)
 
-    return [r, theta]
+    return np.column_stack((r, theta))

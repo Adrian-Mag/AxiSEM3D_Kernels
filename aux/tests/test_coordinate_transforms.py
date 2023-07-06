@@ -179,36 +179,40 @@ def test_geo2cyl() -> None:
 
 def test_cart2polar() -> None:
     # Test case 1: Positive s and z
-    s = 1
-    z = 2
-    expected_result = [np.sqrt(5), np.arctan(2 / 1)]
+    s = np.array([1, 2])
+    z = np.array([2, 3])
+    expected_result = np.array([[np.sqrt(5), np.arctan(2 / 1)],
+                                [np.sqrt(13), np.arctan(3 / 2)]])
     result = cart2polar(s, z)
     assert_allclose(result, expected_result, atol=1e-6)
 
     # Test case 2: Zero s and positive z
-    s = 0
-    z = 3
-    expected_result = [3, np.pi / 2]
+    s = np.array([0, 0])
+    z = np.array([3, 4])
+    expected_result = np.array([[3, np.pi / 2],
+                                [4, np.pi / 2]])
     result = cart2polar(s, z)
     assert_allclose(result, expected_result, atol=1e-6)
 
     # Test case 3: Zero s and negative z
-    s = 0
-    z = -4
-    expected_result = [4, -np.pi / 2]
+    s = np.array([0, 0])
+    z = np.array([-4, -5])
+    expected_result = np.array([[4, -np.pi / 2],
+                                [5, -np.pi / 2]])
     result = cart2polar(s, z)
     assert_allclose(result, expected_result, atol=1e-6)
 
     # Test case 4: Zero s and zero z
-    s = 0
-    z = 0
-    expected_result = [0, 0]
+    s = np.array([0, 0])
+    z = np.array([0, 0])
+    expected_result = np.array([[0, 0],
+                                [0, 0]])
     result = cart2polar(s, z)
     assert_allclose(result, expected_result, atol=1e-6)
 
     # Test case 5: Negative s (should raise exception)
-    s = -1
-    z = 5
+    s = np.array([-1, 2])
+    z = np.array([5, 6])
     try:
         result = cart2polar(s, z)
         assert False  # The line above should raise an exception, so this line should not be reached
