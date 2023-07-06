@@ -26,7 +26,28 @@ def sph2cart(rad: float, lat: float, lon: float) -> np.ndarray:
 
 
 def cart2sph(x: float, y: float, z: float) -> np.ndarray:
+    """
+    Convert Cartesian coordinates to spherical coordinates.
+
+    Parameters:
+    - x (float): x-coordinate.
+    - y (float): y-coordinate.
+    - z (float): z-coordinate.
+
+    Returns:
+    - np.ndarray: Array containing the spherical coordinates [rad, lat, lon].
+
+    Raises:
+    - ValueError: If the radius (rad) is zero or if x is zero.
+    """
+
+    if x == 0.0:
+        raise ValueError("Invalid input: x-coordinate cannot be zero.")
+
     rad = np.sqrt(x*x + y*y + z*z)
+    if rad == 0.0:
+        raise ValueError("Invalid input: radius (rad) cannot be zero.")
+
     lat = np.arcsin(z / rad)
     lon = np.arctan2(y, x)
     
@@ -40,11 +61,26 @@ def geo2cyl(point: list, rotation_matrix: np.ndarray) -> list:
 
     Args:
         point (list): [radial position in m, latitude in rad, longitude in rad]
+        rotation_matrix (np.ndarray): Rotation matrix to transform coordinates.
 
     Returns:
         list: [radial position in m, vertical position in m, azimuth from
         source in rad]
+
+    Raises:
+        ValueError: If the point list is not of length 3.
+        ValueError: If the rotation matrix is not of shape (3, 3).
+        ValueError: If the radial position is negative
     """
+    if len(point) != 3:
+        raise ValueError("Invalid input: 'point' list should contain 3 elements.")
+
+    if rotation_matrix.shape != (3, 3):
+        raise ValueError("Invalid input: 'rotation_matrix' should be a 3x3 numpy array.")
+
+    if point[0] < 0:
+        raise ValueError("Radial position must be positive")
+
     radial_pos = point[0]
     latitude = point[1]
     longitude = point[2]
@@ -72,17 +108,32 @@ def geo2cyl(point: list, rotation_matrix: np.ndarray) -> list:
 
 
 def cart2polar(s: float, z: float) -> list:
-    """Transforms inplane cylindrical coords (cartesian)
-    to polar coords
+    """
+    Transform in-plane cylindrical coordinates (cartesian) to polar coordinates.
 
     Args:
-        s (float): distance from cylindarical axis in m
-        z (float): distance along cylindrical axis in m
+        s (float): Distance from cylindrical axis in meters.
+        z (float): Distance along cylindrical axis in meters.
 
     Returns:
-        list: [radius, theta]
-    """       
+        list: [radius, theta] in meters and radians.
+    Raises:
+        ValueError: If `s` is not positive.
+
+    """
+    if s < 0:
+        raise ValueError("Distance `s` must be non-negative.")
+
+    if s == 0:
+        if z > 0:
+            theta = np.pi / 2
+        elif z < 0:
+            theta = -np.pi / 2
+        else:
+            theta = 0
+        return [abs(z), theta]
+
     r = np.sqrt(s**2 + z**2)
-    theta = np.arctan(z/s)
-    
+    theta = np.arctan(z / s)
+
     return [r, theta]
