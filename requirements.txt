@@ -14,6 +14,7 @@ certifi=2023.5.7=py39h06a4308_0
 cffi=1.15.1=py39h5eee18b_3
 charset-normalizer=2.0.4=pyhd3eb1b0_0
 contourpy=1.0.5=py39hdb19cb5_0
+coverage=7.2.2=py39h5eee18b_0
 cryptography=39.0.1=py39h9ce1e76_2
 cycler=0.11.0=pyhd3eb1b0_0
 decorator=5.1.1=pyhd3eb1b0_0
@@ -67,11 +68,13 @@ pillow=9.4.0=py39h6a678d5_0
 pip=23.1.2=py39h06a4308_0
 pluggy=1.0.0=py39h06a4308_1
 pooch=1.4.0=pyhd3eb1b0_0
+py=1.11.0=pyhd3eb1b0_0
 pycparser=2.21=pyhd3eb1b0_0
 pyopenssl=23.0.0=py39h06a4308_0
 pyparsing=3.0.9=py39h06a4308_0
 pysocks=1.7.1=py39h06a4308_0
 pytest=7.3.1=py39h06a4308_0
+pytest-cov=4.0.0=py39h06a4308_0
 python=3.9.16=h955ad1f_3
 python-dateutil=2.8.2=pyhd3eb1b0_0
 python_abi=3.9=2_cp39
@@ -84,6 +87,7 @@ sqlalchemy=1.4.39=py39h5eee18b_0
 sqlite=3.41.2=h5eee18b_0
 tbb=2021.8.0=hdb19cb5_0
 tk=8.6.12=h1ccaba5_0
+toml=0.10.2=pyhd3eb1b0_0
 tomli=2.0.1=py39h06a4308_0
 tzdata=2023c=h04d1e81_0
 urllib3=1.26.16=py39h06a4308_0
