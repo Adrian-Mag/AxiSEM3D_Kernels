@@ -2,49 +2,58 @@ from obspy.taup import TauPyModel
 import sys
 import numpy as np
 
-def find_phase_window(event_depth, event_latitude, event_longitude, 
+
+def find_phase_window(event_depth, event_latitude, event_longitude,
                       station_latitude, station_longitude, T, phase):
-    #####################
-    # FIND PHASE LOCATION
-    #####################
+    """
+    Find the time window for a specific seismic phase arrival.
+
+    Args:
+        event_depth (float): Event depth in kilometers.
+        event_latitude (float): Event latitude in degrees.
+        event_longitude (float): Event longitude in degrees.
+        station_latitude (float): Station latitude in degrees.
+        station_longitude (float): Station longitude in degrees.
+        T (float): Desired window duration in seconds.
+        phase (str): Seismic phase name.
+
+    Returns:
+        list: [window_start, window_end] representing the time window boundaries.
+
+    Raises:
+        ValueError: If no arrivals are found for the specified phase.
+    """
     # Specify the model for travel time calculations
     model = TauPyModel(model='iasp91')
 
     # Compute the travel times
-    arrivals = model.get_travel_times_geo(source_depth_in_km=event_depth, 
-                                        source_latitude_in_deg=event_latitude, 
-                                        source_longitude_in_deg=event_longitude, 
-                                        receiver_latitude_in_deg=station_latitude, 
-                                        receiver_longitude_in_deg=station_longitude, 
-                                        phase_list=(phase,))
+    arrivals = model.get_travel_times_geo(
+        source_depth_in_km=event_depth,
+        source_latitude_in_deg=event_latitude,
+        source_longitude_in_deg=event_longitude,
+        receiver_latitude_in_deg=station_latitude,
+        receiver_longitude_in_deg=station_longitude,
+        phase_list=(phase,))
 
-    # Get the arrival time of the desired phase
-    arrival_times = []
-    if len(arrivals) == 0:
-        raise ValueError('No arrivals found')
-    else:
-        for arrival in arrivals:
-            arrival_times.append(arrival.time)
+    # Get the arrival times of the desired phase
+    arrival_times = [arrival.time for arrival in arrivals]
 
-    # Find if all arrivals can fit in the window
-    if max(arrival_times) - min(arrival_times) > T:
-        print('Not all arrival_times can fit in the time window')
-        option = input('Choose an option: \n 0-Modify window to {} so that they all fit \n '
-                    '1-Choose only the first arrival_times that fit in window \n 2-Abort'.format(max(arrival_times) - min(arrival_times)))
+    if len(arrival_times) == 0:
+        raise ValueError('No arrivals found for the specified phase')
 
-        if option == 0:
-            window_left = min(arrival_times) - T/2
-            window_right = max(arrival_times) + T/2
-        elif option == 1:
-            window_left = min(arrival_times) - T/2
-            window_right = window_left + T/2
-        else:
-            sys.exit(1)
-    else:
-        window_left = min(arrival_times) - T/2
-        window_right = window_left + T
+    # Sort the arrival times in ascending order
+    arrival_times.sort()
 
-    return [window_left, window_right]
+    # Calculate the minimum and maximum arrival times
+    min_arrival_time = arrival_times[0]
+    max_arrival_time = arrival_times[-1]
+
+    # Calculate the window boundaries
+    window_start = min_arrival_time - T / 2
+    window_end = max_arrival_time + T / 2
+
+    return [window_start, window_end]
+
 
 def window_data(time_array, data_array, t_min, t_max):
     """
