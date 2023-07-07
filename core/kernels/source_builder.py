@@ -29,7 +29,7 @@ def L2_STF_builder(real_data_path: str, forward_data_path: str,
     stream_real_data  = real_data_obspyobj.stream
     real_data_name = real_data_obspyobj.mseed_file_name
     # get real data time and time step
-    real_data_time = stream_real_data[0].times(type="relative")
+    real_data_time = stream_real_data[0].times('timestamp')
     dt_real_data = real_data_time[1] - real_data_time[0]
     # Select the specific station data
     stream_real_data = stream_real_data.select(station=station)
@@ -68,12 +68,13 @@ def L2_STF_builder(real_data_path: str, forward_data_path: str,
     # Project both arrays on the master time
     interpolated_real_data = []
     interpolated_forward_data = []
-
     residue = {}
-    for _, channel in enumerate(channel_type):
+
+    fig, axs = plt.subplots(3, 1)
+    for index, channel in enumerate(channel_type):
         interpolated_real_data = np.interp(master_time, 
                                         real_data_time, 
-                                        stream_real_data.select(channel='LX' + channel)[0].data)
+                                        stream_real_data.select(channel='U' + channel)[0].data)
         interpolated_forward_data = np.interp(master_time, 
                                             forward_time, 
                                             stream_forward_data.select(channel='U' + channel)[0].data)
@@ -85,18 +86,19 @@ def L2_STF_builder(real_data_path: str, forward_data_path: str,
             windowed_master_time = master_time
             windowed_real_data = interpolated_real_data
             windowed_forward_data = interpolated_forward_data
-        # Flip along the time axis to apply the t -> T-t transformation and multiply with -1
+        # Apply the t -> T-t transformation to the dresidue and multiply with -1
         residue[channel] = -np.flip(np.array(windowed_forward_data) - np.array(windowed_real_data))
+        axs[index].plot(windowed_master_time, residue[channel])
+        axs[index].plot(windowed_master_time, windowed_forward_data, color='red')
+        axs[index].plot(windowed_master_time, windowed_real_data, color='blue')
+        axs[index].text(1.05, 0.5, index, transform=axs[index].transAxes)
+    # Apply the t -> T-t transformation to the time 
+    transformed_windowed_master_time = np.flip(np.max(master_time) - windowed_master_time)
     STF = residue
 
     ##########
     # PLOT STF
     ##########
-    fig, axs = plt.subplots(3, 1)
-
-    for index, channel in enumerate(channel_type):
-        axs[index].plot(windowed_master_time, STF[channel])
-        axs[index].text(1.05, 0.5, channel, transform=axs[index].transAxes)
     plt.show()
 
     ###############
@@ -105,12 +107,13 @@ def L2_STF_builder(real_data_path: str, forward_data_path: str,
     # Save residue as STF.txt file ready to be given to AxiSEM3D
     directory = 'CMB/STFS/' + element_data_name + '_' + real_data_name + '/'
     if not os.path.exists(directory):
-        os.makedirs(directory)
-        print("Directory created:", directory)
-        save_STF(directory, windowed_master_time, STF, channel_type)
-        
+        ans = input('Overwrite the existing data [y/n]: ')
+        if ans == 'y':
+            os.makedirs(directory)
+            print("Directory created:", directory)
+            save_STF(directory, transformed_windowed_master_time, STF, channel_type)
     else:
         print("Directory already exists:", directory)
         ans = input('Overwrite the existing data [y/n]: ')
         if ans == 'y':
-            save_STF(directory, windowed_master_time, STF, channel_type)
+            save_STF(directory, transformed_windowed_master_time, STF, channel_type)

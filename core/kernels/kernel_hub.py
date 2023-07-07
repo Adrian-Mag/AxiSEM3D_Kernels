@@ -11,34 +11,33 @@ from .kernel import L2Kernel
 # CHOICE PARAMETERS
 ###################
 
-SOURCE_BUILDING = True
-KERNEL_COMPUTATION = False
+SOURCE_BUILDING = False
+KERNEL_COMPUTATION = True
 
 ############################
 # SOURCE BUILDING PARAMETERS
 ############################
 # Path to the mseed file of real data
-real_data_path = '/disks/data/PhD/CMB/simu3D_CMB/REAL_DATA/output/obspyfied/REAL_DATA.mseed'
+real_data_path = '/disks/data/PhD/CMB/simu3D_CMB/REAL_DATA/output/stations/Station_grid/obspyfied/Station_grid.mseed'
 # Path to element output of synthetic data
-element_path = '/disks/data/PhD/CMB/simu1D_element/FORWARD/output/elements/entire_earth'
+element_path = '/disks/data/PhD/CMB/simu1D_element/FORWARD/output/elements/forward_20s_1D'
 
 # location info
 network = 'A'
-station = '22'
+station = '356'
 location = '*'
 
 # Window size [seconds]
-T = 40
+T = 50
 # Phase
-phase = 'PcP'
+phase = 'PP'
 
 ###############################
 # KERNEL COMPUTATION PARAMETERS
 ###############################
 
-path_to_backward = '/disks/data/PhD/CMB/simu1D_element/BACKWARD_DATA/output/elements/entire_earth'
+path_to_backward = '/disks/data/PhD/CMB/simu1D_element_backward/BACKWARD/output/elements/entire_earth'
 path_to_inversion_mesh = '/disks/data/PhD/CMB/stations/STA_3D_UNIFORM_STA.txt'
-element_output_geometry = [0, 2, 4]
 
 ################
 # IMPLEMENTATION
@@ -58,15 +57,16 @@ event_longitude = catalogue[0].origins[0].longitude
 
 window_left, window_right = find_phase_window(event_depth, event_latitude, event_longitude, 
                                               station_latitude, station_longitude, T, phase)
-window_left = None
-window_right = None
+#window_left = None
+#window_right = None
 
 if SOURCE_BUILDING is True:
     L2_STF_builder(real_data_path, element_path, station, network, 
                   location, window_left, window_right)
 
 if KERNEL_COMPUTATION is True:
-    kernel = L2Kernel(element_path, path_to_backward,
-                        window_left, window_right)
+    kernel = L2Kernel(element_path, path_to_backward)
     #kernel.evaluate_on_mesh(path_to_inversion_mesh, '/disks/data/PhD/AxiSEM3D-Kernels/KERNELS')
-    kernel.evaluate_on_slice([0, 0, 0], [0, 0, 30], 3480000, 6371000, 50, 'none')
+    kernel.evaluate_on_slice([0, 0, 0], [0, 0, 40], 3480000, 6371000, 
+                             200, 'none', log_plot=False,
+                             low_range=0, high_range=0.1)

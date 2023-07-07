@@ -9,30 +9,31 @@ matplotlib.use('tkagg')
 import matplotlib.pyplot as plt
 import os 
 from tqdm import tqdm
+import random
 
 
 class L2Kernel():
 
-    def __init__(self, forward_data_path, backward_data_path,
-                 window_left, window_right):
+    def __init__(self, forward_data_path, backward_data_path):
         self.forward_data = ElementOutput(forward_data_path)
         self.backward_data = ElementOutput(backward_data_path)
-        self.window_left = window_left
-        self.window_right = window_right
 
         # get the forward and backward time 
         fw_time = self.forward_data.data_time
         self.fw_dt = fw_time[1] - fw_time[0]
         bw_time = self.backward_data.data_time
+        # Apply again t -> T-t transform on the adjoint time
+        bw_time = np.flip(np.max(bw_time) - bw_time)
         self.bw_dt = bw_time[1] - bw_time[0]
+
         # Find the master time (minmax/maxmin)
         t_max = min(fw_time[-1], bw_time[-1])
         t_min = max(fw_time[0], bw_time[0])
         dt = max(self.fw_dt, self.bw_dt)
         self.master_time = np.arange(t_min, t_max, dt)
 
-        self.fw_time = fw_time[0:-1] + self.fw_dt
-        self.bw_time = bw_time[0:-1] + self.bw_dt
+        self.fw_time = fw_time
+        self.bw_time = bw_time
 
 
     def evaluate_on_mesh(self, path_to_inversion_mesh, sensitivity_out_path):
@@ -60,84 +61,145 @@ class L2Kernel():
         sensitivity_df = pd.DataFrame(sensitivity)
         sensitivity_df.to_csv(sensitivity_out_path + '/' + 'sensitivity_rho.txt', sep=' ', index=False)
 
-    def evaluate_rho_0(self, point):
 
+    def _point_in_region_of_interest(self, point)-> bool:
+        if random.random() < 0.01:
+            max_lat = 30
+            min_lat = -30
+            min_lon = -30
+            max_lon = 30
+            min_rad = 3400000
+            max_rad = 6371000
+            if point[0] < max_rad and point[0] > min_rad \
+                and np.rad2deg(point[1]) < max_lat and np.rad2deg(point[1]) > min_lat \
+                and np.rad2deg(point[2]) < max_lon and np.rad2deg(point[2]) > min_lon:
+                return True
+            else:
+                return False
+        else:
+            return False
+
+
+    def evaluate_rho_0(self, point):
+        """ in_region = self._point_in_region_of_interest(point)
+        if in_region: print(point[0], np.rad2deg(point[1]), np.rad2deg(point[2]))
+        """
         # get forwards and backward waveforms at this point
         forward_waveform = np.nan_to_num(self.forward_data.load_data_at_point(point, channels=['U']))
         backward_waveform = np.nan_to_num(self.backward_data.load_data_at_point(point, channels=['U']))
-
+        
+        # Apply again t -> T-t transform on the adjoint data 
+        backward_waveform = np.flip(backward_waveform)
+        # Compute time at the derivative points
+        fw_time = self.fw_time[0:-1] + self.fw_dt / 2
+        bw_time = self.bw_time[0:-1] + self.bw_dt / 2
         # Compute time derivatives wrt to time
         dfwdt = np.diff(forward_waveform) / self.fw_dt
         dbwdt = np.diff(backward_waveform) / self.bw_dt
 
         # Project both arrays on the master time
-        interpolated_dfwdt = []
-        interpolated_dbwdt = []
+        interp_dfwdt = []
+        interp_dbwdt = []
 
         for i in range(3):
-            interpolated_dfwdt.append(np.interp(self.master_time, self.fw_time, dfwdt[i]))
-            interpolated_dbwdt.append(np.interp(self.master_time, self.bw_time, dbwdt[i]))
-        interpolated_dfwdt = np.array(interpolated_dfwdt)
-        interpolated_dbwdt = np.array(interpolated_dbwdt)
-
-        # flip backward waveform in the time axis
-        reversed_dbwdt = np.flip(interpolated_dbwdt, axis=1)
-
-        # Window the data
-        if self.window_left is not None and self.window_right is not None:
-            windowed_time, windowed_interp_dfwdt = window_data(self.master_time, interpolated_dfwdt, self.window_left, self.window_right)
-            _, windowed_reversed_dbwdt = window_data(self.master_time, reversed_dbwdt, self.window_left, self.window_right)
-        else:
-            windowed_time = self.master_time
-            windowed_interp_dfwdt = interpolated_dfwdt
-            windowed_reversed_dbwdt = reversed_dbwdt
+            interp_dfwdt.append(np.interp(self.master_time, fw_time, dfwdt[i]))
+            interp_dbwdt.append(np.interp(self.master_time, bw_time, dbwdt[i]))
+        interp_dfwdt = np.array(interp_dfwdt)
+        interp_dbwdt = np.array(interp_dbwdt)
 
         # make dot product 
-        fw_bw = (windowed_interp_dfwdt * windowed_reversed_dbwdt).sum(axis=0)
+        fw_bw = (interp_dfwdt * interp_dbwdt).sum(axis=0)
         
-        sensitivity = integrate.simpson(fw_bw, dx=(windowed_time[1] - windowed_time[0]))
+        """ if in_region:
+            fig1, axs = plt.subplots(2,3)
+            for chn in range(len(forward_waveform)):
+                axs[0, chn].plot(fw_time, forward_waveform[chn,0:-1])
+                axs[1, chn].plot(bw_time, backward_waveform[chn,0:-1])
+            fig2, axs = plt.subplots(2,3)
+            for chn in range(len(forward_waveform)):
+                axs[0, chn].plot(fw_time, dfwdt[chn,:])
+                axs[1, chn].plot(bw_time, dbwdt[chn,:])
+            fig3, axs = plt.subplots(2,3)
+            for chn in range(len(forward_waveform)):
+                axs[0, chn].plot(self.master_time, interp_dfwdt[chn,:])
+                axs[1, chn].plot(self.master_time, reversed_interp_dbwdt[chn,:])
+            fig4, axs = plt.subplots(1,3)
+            for chn in range(len(forward_waveform)):
+                axs[chn].plot(self.master_time, interp_dfwdt[chn,:] * reversed_interp_dbwdt[chn,:])
+            fig5 = plt.figure()
+            plt.plot(self.master_time, (interp_dfwdt * reversed_interp_dbwdt).sum(axis=0))
+            plt.show() """
+
+        sensitivity = integrate.simpson(fw_bw, dx=(self.master_time[1] - self.master_time[0]))
         return sensitivity
     
 
-    def evaluate_lambda(self, point):
+    def evaluate_lambda_0(self, point):
+        # K_lambda^zero = int_T (div u)(div u^t) = int_T (tr E)(tr E^t) = 
+        # int_T (EZZ+ERR+ETT)(EZZ^t+ERR^t+ETT^t)
+        # 
         # get forwards and backward waveforms at this point
-        forward_waveform = np.nan_to_num(self.forward_data.load_data_at_point(point, channels=['E']))
-        backward_waveform = np.nan_to_num(self.backward_data.load_data_at_point(point, channels=['E']))
+        forward_waveform = np.nan_to_num(self.forward_data.load_data_at_point(point, channels=['EZZ', 'ERR', 'ETT']))
+        backward_waveform = np.nan_to_num(self.backward_data.load_data_at_point(point, channels=['EZZ', 'ERR', 'ETT']))
+
+        #compute trace of each wavefield and flip adjoint in time
+        trace_E = forward_waveform.sum(axis=0)
+        trace_E_adjoint = np.flip(backward_waveform.sum(axis=0))
+
+        # Project both on master time
+        interp_trace_E = []
+        interp_trace_E_adjoint = []
+
+        interp_trace_E.append(np.interp(self.master_time, self.fw_time, trace_E))
+        interp_trace_E_adjoint.append(np.interp(self.master_time, self.bw_time, trace_E_adjoint))
+        
+        interp_trace_E = np.array(interp_trace_E)
+        interp_trace_E_adjoint = np.array(interp_trace_E_adjoint)
+
+        return integrate.simpson(interp_trace_E * interp_trace_E_adjoint, 
+                                 dx = (self.master_time[1] - self.master_time[0]))
 
 
-
-
-    def evaluate_mu(self, point):
+    def evaluate_mu_0(self, point):
         # get forwards and backward waveforms at this point
         forward_waveform = np.nan_to_num(self.forward_data.load_data_at_point(point, channels=['E']))
         backward_waveform = np.nan_to_num(self.backward_data.load_data_at_point(point, channels=['E']))
 
 
     def evaluate_on_slice(self, source_loc: list, station_loc: list,
-                          R_min: float, R_max: float, N: int, slice_out_path: str):
+                          R_min: float, R_max: float, N: int, slice_out_path: str,
+                          log_plot: bool=False, low_range: float=0.1, high_range: float=0.999):
         
         filtered_indices, filtered_slice_points, \
         point1, point2, base1, base2, \
-        inplane_DIM1, inplane_DIM2 = self.forward_data._create_slice(source_loc, station_loc, R_max=R_max,
+        inplane_DIM1, inplane_DIM2 = self.forward_data._create_slice(source_loc, station_loc, R_max=R_max, theta_min=0, theta_max=np.pi,
                                                                         R_min=R_min, resolution=N, return_slice=True)
         # Initialize sensitivity values on the slice (Slice frame)
         inplane_sensitivity = np.zeros((N, N))
         
         with tqdm(total=len(filtered_slice_points)) as pbar:
             for [index1, index2], point in zip(filtered_indices, filtered_slice_points):
-                inplane_sensitivity[index1, index2] = self.evaluate(point)
+                inplane_sensitivity[index1, index2] = self.evaluate_rho_0(point)
                 pbar.update(1)
-                    
-        cbar_min, cbar_max = self._find_range(inplane_sensitivity, percentage_min=0.1, percentage_max=0.99)
         
-        plt.figure()
-        contour = plt.contourf(inplane_DIM1, inplane_DIM2, np.nan_to_num(inplane_sensitivity),
-                     levels=np.linspace(cbar_min, cbar_max, 100), cmap='RdBu_r', extend='both')
+        if log_plot is False:
+            _, cbar_max = self._find_range(inplane_sensitivity, percentage_min=0, percentage_max=1)
+            cbar_max *= high_range
+            cbar_min = -cbar_max
+            plt.figure()
+            contour = plt.contourf(inplane_DIM1, inplane_DIM2, np.nan_to_num(inplane_sensitivity),
+                        levels=np.linspace(cbar_min, cbar_max, 100), cmap='RdBu_r', extend='both')
+        else:
+            cbar_min, cbar_max = self._find_range(np.log10(np.abs(inplane_sensitivity)), percentage_min=low_range, percentage_max=high_range)
+            
+            plt.figure()
+            contour = plt.contourf(inplane_DIM1, inplane_DIM2, np.log10(np.abs(inplane_sensitivity)),
+                        levels=np.linspace(cbar_min, cbar_max, 100), cmap='RdBu_r', extend='both')
         plt.scatter(np.dot(point1, base1), np.dot(point1, base2))
         plt.scatter(np.dot(point2, base1), np.dot(point2, base2))
         cbar = plt.colorbar(contour)
 
-        cbar_ticks = np.linspace(int(cbar_min), int(cbar_max), 5) # Example tick values
+        cbar_ticks = np.linspace(cbar_min, cbar_max, 5) # Example tick values
         cbar_ticklabels = [str(cbar_tick) for cbar_tick in cbar_ticks] # Example tick labels
         cbar.set_ticks(cbar_ticks)
         cbar.set_ticklabels(cbar_ticklabels)
@@ -167,8 +229,8 @@ class L2Kernel():
         sorted_arr = np.sort(flattened)
         
         # Compute the index that corresponds to percentage of the values
-        percentile_index_min = int(len(sorted_arr) * percentage_min)        
-        percentile_index_max= int(len(sorted_arr) * percentage_max)
+        percentile_index_min = int((len(sorted_arr)-1) * percentage_min)        
+        percentile_index_max= int((len(sorted_arr)-1) * percentage_max)
         
         # Get the value at the computed index
         smallest_value = sorted_arr[percentile_index_min]
