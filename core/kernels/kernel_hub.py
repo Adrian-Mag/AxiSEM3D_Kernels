@@ -3,6 +3,8 @@ from ..handlers.obspy_output import ObspyfiedOutput
 from ...aux.helper_functions import find_phase_window
 from .kernel import L2Kernel
 
+import numpy as np
+
 #@@@@@@@@@@@@@
 # L2 Kernels @
 #@@@@@@@@@@@@@
@@ -28,9 +30,9 @@ station = '356'
 location = '*'
 
 # Window size [seconds]
-T = 50
+T = 40
 # Phase
-phase = 'PP'
+phase = 'P'
 
 ###############################
 # KERNEL COMPUTATION PARAMETERS
@@ -67,6 +69,8 @@ if SOURCE_BUILDING is True:
 if KERNEL_COMPUTATION is True:
     kernel = L2Kernel(element_path, path_to_backward)
     #kernel.evaluate_on_mesh(path_to_inversion_mesh, '/disks/data/PhD/AxiSEM3D-Kernels/KERNELS')
-    kernel.evaluate_on_slice([0, 0, 0], [0, 0, 40], 3480000, 6371000, 
-                             200, 'none', log_plot=False,
-                             low_range=0, high_range=0.1)
+    kernel.evaluate_on_slice([0, 0, 0], [0, 0, 10], 
+                             3480000, 6371000, 
+                             theta_min=np.deg2rad(-10), theta_max=np.deg2rad(50),
+                             N=300, slice_out_path='none', log_plot=False,
+                             low_range=0, high_range=0.1, show_points=False)

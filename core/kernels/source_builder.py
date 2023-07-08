@@ -29,7 +29,7 @@ def L2_STF_builder(real_data_path: str, forward_data_path: str,
     stream_real_data  = real_data_obspyobj.stream
     real_data_name = real_data_obspyobj.mseed_file_name
     # get real data time and time step
-    real_data_time = stream_real_data[0].times('timestamp')
+    real_data_time = stream_real_data[0].times('timestamp')- 5
     dt_real_data = real_data_time[1] - real_data_time[0]
     # Select the specific station data
     stream_real_data = stream_real_data.select(station=station)
