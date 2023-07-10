@@ -91,7 +91,7 @@ def sph2cyl(point: list) -> list:
     return np.array([s, z, phi])
 
 
-def cart_geo2cart_src(point: list, rotation_matrix: np.ndarray) -> np.ndarray:
+def cart_geo2cart_src(point: np.ndarray, rotation_matrix: np.ndarray) -> np.ndarray:
     # Rotate coordinates from the Earth frame to the source frame
     if len(point) != 3:
         raise ValueError("Invalid input: 'point' list should contain 3 elements.")
@@ -99,9 +99,7 @@ def cart_geo2cart_src(point: list, rotation_matrix: np.ndarray) -> np.ndarray:
     if rotation_matrix.shape != (3, 3):
         raise ValueError("Invalid input: 'rotation_matrix' should be a 3x3 numpy array.")
 
-    rotated_coords = np.matmul(rotation_matrix.transpose(), np.asarray([point[0], point[1], point[2]]))
-    x, y, z = rotated_coords
-    return np.array([x, y, z])
+    return np.matmul(rotation_matrix.transpose(), point)
 
 
 def cart2polar(s: np.ndarray, z: np.ndarray) -> np.ndarray:
@@ -123,7 +121,7 @@ def cart2polar(s: np.ndarray, z: np.ndarray) -> np.ndarray:
 
     theta = np.where(s == 0,
                      np.where(z > 0, np.pi / 2, np.where(z < 0, -np.pi / 2, 0)),
-                     np.arctan(z / s))
+                     np.arctan2(z, s))
     r = np.sqrt(s**2 + z**2)
 
     return np.column_stack((r, theta))
@@ -152,14 +150,6 @@ def cart2cyl(point: np.ndarray) -> np.ndarray:
     x, y, z = point
 
     s = np.sqrt(x*x + y*y)
-    if x == 0.0:
-        if y > 0:
-            phi = np.pi/2
-        elif y < 0:
-            phi = -np.pi/2
-        else:
-            phi = 0
-    else:
-        phi = np.arctan2(y, x)
+    phi = np.arctan2(y, x)
 
-    return np.array([s, phi, z])
+    return np.array([s, z, phi])

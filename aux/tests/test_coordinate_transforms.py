@@ -124,13 +124,13 @@ class TestCart2Cyl(unittest.TestCase):
 
         expected_results = np.array([
             [1, 0, 0],
-            [1, np.pi/2, 0],
-            [1, np.pi, 0],
-            [1, -np.pi/2, 0],
-            [np.sqrt(2), np.pi/4, 1],
+            [1, 0, np.pi/2],
+            [1, 0, np.pi],
+            [1, 0, -np.pi/2],
+            [np.sqrt(2), 1, np.pi/4],
             [0, 0, 0],
-            [1, np.pi/2, 2],
-            [1, -np.pi/2, -2],
+            [1, 2, np.pi/2],
+            [1, -2, -np.pi/2],
         ])
 
         for point, expected_result in zip(points, expected_results):
