@@ -40,21 +40,33 @@ class ElementOutput(AxiSEM3DOutput):
             coordinate_frame (str): Coordinate frame of the wavefields.
             channels (list): List of wavefield channels.
             detailed_channels (list): List of channels component by component
-            grid_format (str): Grid format for the in-plane coordinates.
+            GLL_points_one_edge (str): Grid format for the in-plane coordinates.
             source_lat (float): Latitude of the event located on the axis.
             source_lon (float): Longitude of the event located on the axis.
         """
         path_to_simulation = self._find_simulation_path(path_to_element_output)
         super().__init__(path_to_simulation)
 
+        # If the output file has multiple element groups, you need to know which
+        # one you are using, therefore we store its name
         self.element_group_name = os.path.basename(path_to_element_output)
-        # Get element group names, channels, and grid format from the input file
+        # Get all the data from the output model
         with open(self.inparam_output, 'r') as file:
             output_yaml = yaml.load(file, Loader=yaml.FullLoader)
             element_group = output_yaml['list_of_element_groups'][0][self.element_group_name]
+            self.horizontal_range = element_group['elements']['horizontal_range']
+            self.vertical_range = element_group['elements']['vertical_range']
+            self.edge_dimension = element_group['inplane']['edge_dimension']
+            self.edge_position = element_group['inplane']['edge_position']
+            self.GLL_points_one_edge = element_group['inplane']['GLL_points_one_edge']
+            self.phi_list = element_group['azimuthal']['phi_list']
+            self.lat_lon_list = element_group['azimuthal']['lat_lon_list']
+            self.na_space = element_group['azimuthal']['na_space']
             self.coordinate_frame  = element_group['wavefields']['coordinate_frame']
+            self.medium = element_group['wavefields']['medium']
             self.channels = element_group['wavefields']['channels']
-            self.grid_format = element_group['inplane']['GLL_points_one_edge']
+            self.sampling_period = element_group['temporal']['sampling_period']
+            self.time_window = element_group['temporal']['time_window']
 
         # get lat lon of the event located on the axis
         with open(self.inparam_source, 'r') as file:
@@ -321,7 +333,7 @@ class ElementOutput(AxiSEM3DOutput):
         Expand an in-plane point into the longitudinal direction using the Fourier expansion.
 
         Args:
-            point (list): A list representing the point in geographical coordinates.
+            point (list): A list representing the point in geographical frame.
                         It should contain the following elements:
                         - radial position in meters (float)
                         - latitude in degrees/radians (float)
@@ -338,6 +350,7 @@ class ElementOutput(AxiSEM3DOutput):
         Returns:
             np.ndarray: The result of the Fourier expansion, represented as a NumPy array.
         """
+        
         # Transform geographical to cylindrical coords in source frame
         if coord_in_deg:
             point[1] = np.deg2rad(point[1])
@@ -402,7 +415,7 @@ class ElementOutput(AxiSEM3DOutput):
         # spherical coordinates will be used for the GLL interpolation
         [r, theta] = cart2polar(s,z)[0]
 
-        if self.grid_format == [0,2,4]:
+        if self.GLL_points_one_edge == [0,2,4]:
             # The of the element are positioned like this (GLL point)
             # The numbers inbetween the points are the sub-element numbers
             # ^z
@@ -630,6 +643,7 @@ class ElementOutput(AxiSEM3DOutput):
     def animation(self, source_location: list, station_location: list, channels: list=['U'],
                           name: str='video', video_duration: int=20, frame_rate: int=10,
                           resolution: int=100, R_min: float=0, R_max: float=6371000,
+                          theta_min: float=-np.pi, theta_max: float=np.pi,
                           lower_range: float=0.6, upper_range: float=0.9999,
                           paralel_processing: bool=True, timeit: bool=False):
         """
@@ -660,15 +674,17 @@ class ElementOutput(AxiSEM3DOutput):
         if paralel_processing is True:
             inplane_field, point1, point2, \
             base1, base2, inplane_DIM1, \
-            inplane_DIM2 = self.load_data_on_slice_parallel(source_location, station_location, 
-                                                        R_max, R_min, resolution, channels, 
-                                                        time_slices=time_slices, return_slice=True)
+            inplane_DIM2 = self.load_data_on_slice_parallel(source_location=source_location, station_location=station_location, 
+                                                            R_max=R_max, R_min=R_min, theta_min=theta_min, theta_max=theta_max,
+                                                            resolution=resolution, channels=channels, 
+                                                            time_slices=time_slices, return_slice=True)
         else:
             inplane_field, point1, point2, \
             base1, base2, inplane_DIM1, \
-            inplane_DIM2 = self.load_data_on_slice_serial(source_location, station_location, 
-                                                        R_max, R_min, resolution, channels, 
-                                                        time_slices=time_slices, return_slice=True)
+            inplane_DIM2 = self.load_data_on_slice_serial(source_location=source_location, station_location=station_location, 
+                                                            R_max=R_max, R_min=R_min, theta_min=theta_min, theta_max=theta_max,
+                                                            resolution=resolution, channels=channels, 
+                                                            time_slices=time_slices, return_slice=True)
         
         print('Create animation')
 
@@ -754,9 +770,9 @@ class ElementOutput(AxiSEM3DOutput):
                                         coord_in_deg=False), indices)
 
     
-    def load_data_on_slice_parallel(self, source_location, station_location,
-                                R_max, R_min, resolution, channels, time_slices,
-                                return_slice: bool=False):
+    def load_data_on_slice_parallel(self, source_location: list, station_location: list,
+                                    R_max: float, R_min: float, theta_min: float, theta_max: float,
+                                    resolution: int, channels: list, time_slices: list, return_slice: bool=False):
         """
         Load data on a slice of points within a specified radius range and
         resolution using parallel processing and batching.
@@ -779,13 +795,23 @@ class ElementOutput(AxiSEM3DOutput):
 
         """
         if return_slice is False:
-            filtered_indices, filtered_slice_points = self._create_slice(source_location, station_location, 
-                                                                        R_max, R_min, resolution)
+            filtered_indices, filtered_slice_points = self._create_slice(source_location=source_location, 
+                                                                         station_location=station_location, 
+                                                                         R_min=R_min, R_max=R_max, 
+                                                                         theta_min=theta_min, 
+                                                                         theta_max=theta_max,
+                                                                         resolution=resolution,
+                                                                         return_slice=return_slice)
         else:
             filtered_indices, filtered_slice_points, \
             point1, point2, base1, base2, \
-            inplane_DIM1, inplane_DIM2 = self._create_slice(source_location, station_location, 
-                                                            R_max, R_min, resolution, return_slice=True)
+            inplane_DIM1, inplane_DIM2 = self._create_slice(source_location=source_location, 
+                                                            station_location=station_location, 
+                                                            R_min=R_min, R_max=R_max, 
+                                                            theta_min=theta_min, 
+                                                            theta_max=theta_max,
+                                                            resolution=resolution,
+                                                            return_slice=return_slice)
         
         inplane_field = np.zeros((resolution, resolution, len(channels), len(time_slices)))
 
@@ -803,7 +829,7 @@ class ElementOutput(AxiSEM3DOutput):
                 
                 futures = [executor.submit(self._load_data_at_point_parallel_wrapper, point, channels, time_slices, indices) \
                         for point, indices in zip(batch_points, batch_indices)]
-                
+
                 for future in concurrent.futures.as_completed(futures):
                     [index1, index2] = future.result()[1]
                     inplane_field[int(index1), int(index2), :, :] = future.result()[0]
@@ -837,8 +863,8 @@ class ElementOutput(AxiSEM3DOutput):
 
 
     def load_data_on_slice_serial(self, source_location: list, station_location: list, 
-                                  R_max: float, R_min: float, resolution: int, 
-                                  channels: list, time_slices: list, return_slice: bool=False):
+                                  R_max: float, R_min: float, theta_min: float, theta_max: float, 
+                                  resolution: int, channels: list, time_slices: list, return_slice: bool=False):
         """
         Load data on a slice of points within a specified radius range and resolution.
         Not using multi-processing!
@@ -859,13 +885,23 @@ class ElementOutput(AxiSEM3DOutput):
 
         """
         if return_slice is False:
-            filtered_indices, filtered_slice_points = self._create_slice(source_location, station_location, 
-                                                                        R_max, R_min, resolution)
+            filtered_indices, filtered_slice_points = self._create_slice(source_location=source_location, 
+                                                                         station_location=station_location, 
+                                                                         R_min=R_min, R_max=R_max, 
+                                                                         theta_min=theta_min, 
+                                                                         theta_max=theta_max,
+                                                                         resolution=resolution,
+                                                                         return_slice=return_slice)
         else:
             filtered_indices, filtered_slice_points, \
             point1, point2, base1, base2, \
-            inplane_DIM1, inplane_DIM2 = self._create_slice(source_location, station_location, 
-                                                            R_max, R_min, resolution, return_slice=True)
+            inplane_DIM1, inplane_DIM2 = self._create_slice(source_location=source_location, 
+                                                            station_location=station_location, 
+                                                            R_min=R_min, R_max=R_max, 
+                                                            theta_min=theta_min, 
+                                                            theta_max=theta_max,
+                                                            resolution=resolution,
+                                                            return_slice=return_slice)
         inplane_field = np.zeros((resolution, resolution, len(channels), len(time_slices)))
         pbar = tqdm(total=len(filtered_indices))
         for [index1, index2], point in zip(filtered_indices, filtered_slice_points):
@@ -882,7 +918,7 @@ class ElementOutput(AxiSEM3DOutput):
 
 
     def _create_slice(self, source_location: list, station_location: list, 
-                      R_max: float, R_min: float, theta_min: float, theta_max: float,
+                      R_min: float, R_max: float, theta_min: float, theta_max: float,
                       resolution: int, return_slice: bool=False):
         """
         Create a mesh for a slice of Earth within a specified radius range and resolution.
@@ -900,7 +936,7 @@ class ElementOutput(AxiSEM3DOutput):
             list: A list containing filtered indices and slice points, and optionally, additional slice information.
 
         """
-            # Transform from depth lat lon in deg to rad lat lon in rad
+        # Transform from depth lat lon in deg to rad lat lon in rad
         source_location[0] = self.Earth_Radius - source_location[0]
         source_location[1] = np.deg2rad(source_location[1])
         source_location[2] = np.deg2rad(source_location[2])

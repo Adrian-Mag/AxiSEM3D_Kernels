@@ -50,6 +50,7 @@ class AxiSEM3DOutput:
 
         # Info about the source
         self._catalogue = self._find_catalogue()
+        
         # Info about model
         self.Earth_Radius = 6371000 # m
 
