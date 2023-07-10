@@ -17,7 +17,7 @@ import concurrent.futures
 import time
 
 from .axisem3d_output import AxiSEM3DOutput
-from ...aux.coordinate_transforms import sph2cart, cart2sph, geo2cyl, cart2polar
+from ...aux.coordinate_transforms import sph2cart, cart2sph, cart2polar, cart_geo2cart_src, cart2cyl
 
 class ElementOutput(AxiSEM3DOutput):
     def __init__(self, path_to_element_output:str) -> None:
@@ -50,43 +50,54 @@ class ElementOutput(AxiSEM3DOutput):
         # If the output file has multiple element groups, you need to know which
         # one you are using, therefore we store its name
         self.element_group_name = os.path.basename(path_to_element_output)
+
         # Get all the data from the output model
         with open(self.inparam_output, 'r') as file:
             output_yaml = yaml.load(file, Loader=yaml.FullLoader)
-            element_group = output_yaml['list_of_element_groups'][0][self.element_group_name]
-            self.horizontal_range = element_group['elements']['horizontal_range']
-            self.vertical_range = element_group['elements']['vertical_range']
-            self.edge_dimension = element_group['inplane']['edge_dimension']
-            self.edge_position = element_group['inplane']['edge_position']
-            self.GLL_points_one_edge = element_group['inplane']['GLL_points_one_edge']
-            self.phi_list = element_group['azimuthal']['phi_list']
-            self.lat_lon_list = element_group['azimuthal']['lat_lon_list']
-            self.na_space = element_group['azimuthal']['na_space']
-            self.coordinate_frame  = element_group['wavefields']['coordinate_frame']
-            self.medium = element_group['wavefields']['medium']
-            self.channels = element_group['wavefields']['channels']
-            self.sampling_period = element_group['temporal']['sampling_period']
-            self.time_window = element_group['temporal']['time_window']
+            element_group = output_yaml['list_of_element_groups'][0].get(self.element_group_name, {})
+            self.horizontal_range = element_group.get('elements', {}).get('horizontal_range')
+            self.vertical_range = list(map(float, element_group.get('elements', {}).get('vertical_range', [])))
+            self.edge_dimension = element_group.get('inplane', {}).get('edge_dimension')
+            self.edge_position = element_group.get('inplane', {}).get('edge_position')
+            self.GLL_points_one_edge = element_group.get('inplane', {}).get('GLL_points_one_edge')
+            self.phi_list = element_group.get('azimuthal', {}).get('phi_list')
+            self.lat_lon_list = element_group.get('azimuthal', {}).get('lat_lon_list')
+            self.na_space = element_group.get('azimuthal', {}).get('na_space')
+            self.coordinate_frame = element_group.get('wavefields', {}).get('coordinate_frame')
+            self.medium = element_group.get('wavefields', {}).get('medium')
+            self.channels = element_group.get('wavefields', {}).get('channels')
+            self.sampling_period = element_group.get('temporal', {}).get('sampling_period')
+            self.time_window = element_group.get('temporal', {}).get('time_window')
 
-        # get lat lon of the event located on the axis
+        # Get lat lon of the event located on the axis
         with open(self.inparam_source, 'r') as file:
             source_yaml = yaml.load(file, Loader=yaml.FullLoader)
-            source_name = list(source_yaml['list_of_sources'][0].keys())[0]
-            # assume a single point source
-            source = source_yaml['list_of_sources'][0][source_name]
-            [self.source_lat, self.source_lon]=  source['location']['latitude_longitude']
-            self.source_depth = float(source['location']['depth'])
+            source_name = list(source_yaml.get('list_of_sources', [{}])[0].keys())[0]
+            # Assume a single point source
+            source = source_yaml.get('list_of_sources', [{}])[0].get(source_name, {})
+            self.source_lat, self.source_lon = source.get('location', {}).get('latitude_longitude', [])
+            self.source_depth = float(source.get('location', {}).get('depth'))
 
         self.path_to_elements_output = path_to_element_output
-        # Get metadata 
-        self.na_grid, self.data_time, self.list_element_na, self.list_element_coords, self.\
-        dict_list_element, self.files, self.elements_index_limits, self.detailed_channels = self._read_element_metadata()
-        # Replace the numerical indicators of coordinates with letters based on the cordinate system
-        self.detailed_channels = [element.replace('1', self.coordinate_frame[0]).\
-                                  replace('2', self.coordinate_frame[1]).\
-                                  replace('3', self.coordinate_frame[2]) \
-                                  for element in self.detailed_channels]
-        
+
+        # Get metadata
+        (
+            self.na_grid,
+            self.data_time,
+            self.list_element_na,
+            self.list_element_coords,
+            self.dict_list_element,
+            self.files,
+            self.elements_index_limits,
+            self.detailed_channels,
+        ) = self._read_element_metadata()
+
+        # Replace the numerical indicators of coordinates with letters based on the coordinate system
+        self.detailed_channels = [
+            element.replace('1', self.coordinate_frame[0]).replace('2', self.coordinate_frame[1]).replace('3', self.coordinate_frame[2])
+            for element in self.detailed_channels
+        ]
+
         self.rotation_matrix = self._compute_rotation_matrix()
 
 
@@ -174,27 +185,6 @@ class ElementOutput(AxiSEM3DOutput):
             channels_list.append(self.detailed_channels)
 
         return inv
-    
-
-    def _find_simulation_path(self, path: str):
-        """Takes in the path to a station file used for axisem3d
-        and returns a stream with the wavefields computed at all stations
-
-        Args:
-            path_to_station_file (str): path to station.txt file
-
-        Returns:
-            parent_directory
-        """
-        current_directory = os.path.abspath(path)
-        while True:
-            parent_directory = os.path.dirname(current_directory)
-            if os.path.basename(current_directory) == 'output':
-                return parent_directory
-            elif current_directory == parent_directory:
-                # Reached the root directory, "output" directory not found
-                return None
-            current_directory = parent_directory
 
 
     def stream_STA(self, path_to_station_file: str, 
@@ -350,13 +340,18 @@ class ElementOutput(AxiSEM3DOutput):
         Returns:
             np.ndarray: The result of the Fourier expansion, represented as a NumPy array.
         """
-        
-        # Transform geographical to cylindrical coords in source frame
+
+        # Make sure the degrees are turned to radians
         if coord_in_deg:
             point[1] = np.deg2rad(point[1])
             point[2] = np.deg2rad(point[2])
 
-        _, _, phi = geo2cyl(point, self.rotation_matrix)
+        # Check if the point provided is in the output domain
+        if self._point_not_in_output_domain(point):
+            print('A point that is not in the output domain has been found: ', point)
+
+        # Transform the geographical frame spherical coord into the source frame cylindrical coords
+        _, _, phi = cart2cyl(cart_geo2cart_src(sph2cart(point), rotation_matrix=self.rotation_matrix))
 
         # Get channel slices from channels
         channel_slices = self._channel_slices(channels=channels)
@@ -387,6 +382,155 @@ class ElementOutput(AxiSEM3DOutput):
         return result
 
 
+    def animation(self, source_location: list, station_location: list, channels: list=['U'],
+                          name: str='video', video_duration: int=20, frame_rate: int=10,
+                          resolution: int=100, R_min: float=None, R_max: float=None,
+                          theta_min: float=-np.pi, theta_max: float=np.pi,
+                          lower_range: float=0.6, upper_range: float=0.9999,
+                          paralel_processing: bool=True, timeit: bool=False):
+        """
+        Generate an animation representing seismic data on a slice frame.
+
+        Args:
+            source_location (list): The coordinates [depth, lat, lon] of the seismic source in the Earth frame.
+            station_location (list): The coordinates [depth, lat, lon] of the station location in the Earth frame.
+            name (str, optional): The name of the output video file. Defaults to 'video'.
+            video_duration (int, optional): The duration of the video in seconds. Defaults to 20.
+            frame_rate (int, optional): The number of frames per second in the video. Defaults to 10.
+            resolution (int, optional): The resolution of the slice mesh. Defaults to 100.
+            R_min (float, optional): The minimum radius for data inclusion. Defaults to 0.
+            R_max (float, optional): The maximum radius for data inclusion. Defaults to 6371000.
+            lower_range (float, optional): The lower percentile range for the colorbar intensity. Defaults to 0.5.
+
+        Returns:
+            None
+        """
+        # Fill in the args with default to None
+        if R_min is None:
+            R_min = self.vertical_range[0]
+        if R_max is None:
+            R_max = self.vertical_range[1]
+        
+        # Get time slices from frame rate and video_duration assuming that the
+        # video will include the entire time axis 
+        no_frames = frame_rate*video_duration
+        time_slices = np.round(np.linspace(0, len(self.data_time) - 1, no_frames)).astype(int)
+
+        if timeit is True:
+            start_time = time.time()
+        print('Loading data')
+        if paralel_processing is True:
+            inplane_field, point1, point2, \
+            base1, base2, inplane_DIM1, \
+            inplane_DIM2 = self.load_data_on_slice_parallel(source_location=source_location, station_location=station_location, 
+                                                            R_max=R_max, R_min=R_min, theta_min=theta_min, theta_max=theta_max,
+                                                            resolution=resolution, channels=channels, 
+                                                            time_slices=time_slices, return_slice=True)
+        else:
+            inplane_field, point1, point2, \
+            base1, base2, inplane_DIM1, \
+            inplane_DIM2 = self.load_data_on_slice_serial(source_location=source_location, station_location=station_location, 
+                                                            R_max=R_max, R_min=R_min, theta_min=theta_min, theta_max=theta_max,
+                                                            resolution=resolution, channels=channels, 
+                                                            time_slices=time_slices, return_slice=True)
+        
+        print('Create animation')
+
+        # Create a figure and axis
+        num_subplots = len(channels)
+        num_rows = int(np.ceil(num_subplots / 2))
+        num_cols = 2 if num_subplots > 1 else 1
+
+        cbar_min = []
+        cbar_max = []
+        for channel_slice in range(len(channels)):
+            try:
+                with np.errstate(divide='ignore', invalid='ignore'):
+                    cbar_min_temp, cbar_max_temp = self._find_range(np.log10(np.abs(inplane_field[:,:,channel_slice,:])), lower_range, upper_range)
+            except:
+                cbar_min_temp, cbar_max_temp = [0, 0.1]
+            cbar_min.append(cbar_min_temp)
+            cbar_max.append(cbar_max_temp)
+
+        # Create a list of colorbar min and max values for each channel slice
+        cbar_min_list = [cbar_min[channel_slice] for channel_slice in range(len(channels))]
+        cbar_max_list = [cbar_max[channel_slice] for channel_slice in range(len(channels))]
+
+        # Create a figure and axes
+        fig, axes = plt.subplots(num_rows, num_cols)
+
+        # Create a list to store the colorbars
+        cbar_list = []
+
+        for channel_slice, ax in enumerate(np.ravel(axes)):
+            if channel_slice < len(channels):
+                ax.set_aspect('equal')
+                contour = ax.contourf(inplane_DIM1, inplane_DIM2, 
+                                    np.nan_to_num(np.log10(np.abs(inplane_field[:, :, channel_slice, 0]))), 
+                                    levels=np.linspace(cbar_min_list[channel_slice], cbar_max_list[channel_slice], 100), 
+                                    cmap='RdBu_r', extend='both')
+                ax.scatter(np.dot(point1, base1), np.dot(point1, base2))
+                ax.scatter(np.dot(point2, base1), np.dot(point2, base2))
+                ax.set_title(f'Subplot {channels[channel_slice]}')
+
+                # Create a colorbar for each subplot
+                cbar = plt.colorbar(contour, ax=ax)
+                cbar_ticks = np.linspace(int(cbar_min_list[channel_slice]), int(cbar_max_list[channel_slice]), 5)
+                cbar_ticklabels = [str(cbar_tick) for cbar_tick in cbar_ticks]
+                cbar.set_ticks(cbar_ticks)
+                cbar.set_ticklabels(cbar_ticklabels)
+                cbar.set_label('Intensity')
+                cbar_list.append(cbar)
+            else:
+                ax.axis('off')
+
+        def update(frame):
+            for channel_slice, ax in enumerate(np.ravel(axes)):
+                if channel_slice < len(channels):
+                    ax.cla()
+                    ax.set_aspect('equal')
+                    contour = ax.contourf(inplane_DIM1, inplane_DIM2, 
+                                        np.nan_to_num(np.log10(np.abs(inplane_field[:, :, channel_slice, frame]))), 
+                                        levels=np.linspace(cbar_min_list[channel_slice], cbar_max_list[channel_slice], 100), 
+                                        cmap='RdBu_r', extend='both')
+                    ax.scatter(np.dot(point1, base1), np.dot(point1, base2))
+                    ax.scatter(np.dot(point2, base1), np.dot(point2, base2))
+                    ax.set_title(f'Subplot {channels[channel_slice]}')
+                else:
+                    ax.axis('off')
+            print(100 * frame / no_frames, '%')
+            return contour
+
+        # Adjust spacing between subplots
+        plt.subplots_adjust(left=0.1, right=0.9, bottom=0.1, top=0.9, wspace=0.3, hspace=0.3)
+
+        # Create the animation
+        ani = animation.FuncAnimation(fig, update, frames=video_duration * frame_rate, interval=1e3 / frame_rate)
+        ani.save(self.path_to_elements_output + '/' + name + '_animation.mp4', writer='ffmpeg')
+
+        # Print the time taken if timeit is True
+        if timeit is True:
+            end_time = time.time()
+            print(end_time - start_time)
+
+
+    def _point_not_in_output_domain(self, point: list) -> bool:
+        # The point must be given as [rad, lat, lon] in radians and in the
+        # geographical frame and spherical coords
+
+        # Transfrom point into spherical coords in the source frame
+        rad, lat, _ = cart2sph(cart_geo2cart_src(sph2cart(point), rotation_matrix=self.rotation_matrix))
+        # In the inparam.output the angle for the horizontal range is actually
+        # the colatitude in the source frame therefore we must transform the
+        # latitude to colatitude
+        colat = np.pi/2 - lat
+        if self.vertical_range[0] > rad or rad > self.vertical_range[1] \
+            or colat < self.horizontal_range[0] or colat > self.horizontal_range[1]:
+            return True
+        else:
+            return False
+ 
+
     def _inplane_interpolation(self, point: list, channel_slices: list = None, 
                               time_slices: list = None)-> np.ndarray:
         """Takes in a point in spherical coordinates in the real earth frame
@@ -394,11 +538,11 @@ class ElementOutput(AxiSEM3DOutput):
         in the form of a NumPy array.
 
         Args:
-            point (list): A list representing the point in spherical coordinates.
+            point (list): A list representing the point in spherical coordinates in geographical frame.
                         It should contain the following elements:
                         - radial position in meters (float)
-                        - latitude in degrees (float)
-                        - longitude in degrees (float)
+                        - latitude in radians (float)
+                        - longitude in radians (float)
             channels (list, optional): List of channels to include. Defaults to None, which includes all channels.
             time_limits (list, optional): Time limits for the data. It should be a list with two elements:
                                         - start time in seconds (float)
@@ -411,7 +555,7 @@ class ElementOutput(AxiSEM3DOutput):
         """      
 
         # Transform geographical to cylindrical coords in source frame
-        s, z, _ = geo2cyl(point, self.rotation_matrix)
+        s, z, _ = cart2cyl(cart_geo2cart_src(sph2cart(point), rotation_matrix=self.rotation_matrix))
         # spherical coordinates will be used for the GLL interpolation
         [r, theta] = cart2polar(s,z)[0]
 
@@ -622,149 +766,6 @@ class ElementOutput(AxiSEM3DOutput):
         return wave_data
 
 
-    def _check_elements(self, list1, list2):
-        """Checks if all elements in list1 can be found in list2.
-
-        Args:
-            list1 (list): The first list.
-            list2 (list): The second list.
-
-        Returns:
-            bool: True if all elements in list1 are found in list2, False otherwise.
-            list: List of elements from list1 that are not found in list2.
-        """
-        missing_elements = [element for element in list1 if element not in list2]
-        if len(missing_elements) == 0:
-            return True
-        else:
-            return False
-    
-
-    def animation(self, source_location: list, station_location: list, channels: list=['U'],
-                          name: str='video', video_duration: int=20, frame_rate: int=10,
-                          resolution: int=100, R_min: float=0, R_max: float=6371000,
-                          theta_min: float=-np.pi, theta_max: float=np.pi,
-                          lower_range: float=0.6, upper_range: float=0.9999,
-                          paralel_processing: bool=True, timeit: bool=False):
-        """
-        Generate an animation representing seismic data on a slice frame.
-
-        Args:
-            source_location (list): The coordinates [depth, lat, lon] of the seismic source in the Earth frame.
-            station_location (list): The coordinates [depth, lat, lon] of the station location in the Earth frame.
-            name (str, optional): The name of the output video file. Defaults to 'video'.
-            video_duration (int, optional): The duration of the video in seconds. Defaults to 20.
-            frame_rate (int, optional): The number of frames per second in the video. Defaults to 10.
-            resolution (int, optional): The resolution of the slice mesh. Defaults to 100.
-            R_min (float, optional): The minimum radius for data inclusion. Defaults to 0.
-            R_max (float, optional): The maximum radius for data inclusion. Defaults to 6371000.
-            lower_range (float, optional): The lower percentile range for the colorbar intensity. Defaults to 0.5.
-
-        Returns:
-            None
-        """
-        # Get time slices from frame rate and video_duration assuming that the
-        # video will include the entire time axis 
-        no_frames = frame_rate*video_duration
-        time_slices = np.round(np.linspace(0, len(self.data_time) - 1, no_frames)).astype(int)
-
-        if timeit is True:
-            start_time = time.time()
-        print('Loading data')
-        if paralel_processing is True:
-            inplane_field, point1, point2, \
-            base1, base2, inplane_DIM1, \
-            inplane_DIM2 = self.load_data_on_slice_parallel(source_location=source_location, station_location=station_location, 
-                                                            R_max=R_max, R_min=R_min, theta_min=theta_min, theta_max=theta_max,
-                                                            resolution=resolution, channels=channels, 
-                                                            time_slices=time_slices, return_slice=True)
-        else:
-            inplane_field, point1, point2, \
-            base1, base2, inplane_DIM1, \
-            inplane_DIM2 = self.load_data_on_slice_serial(source_location=source_location, station_location=station_location, 
-                                                            R_max=R_max, R_min=R_min, theta_min=theta_min, theta_max=theta_max,
-                                                            resolution=resolution, channels=channels, 
-                                                            time_slices=time_slices, return_slice=True)
-        
-        print('Create animation')
-
-        # Create a figure and axis
-        num_subplots = len(channels)
-        num_rows = int(np.ceil(num_subplots / 2))
-        num_cols = 2 if num_subplots > 1 else 1
-
-        cbar_min = []
-        cbar_max = []
-        for channel_slice in range(len(channels)):
-            try:
-                cbar_min_temp, cbar_max_temp = self._find_range(np.log10(np.abs(inplane_field[:,:,channel_slice,:])), lower_range, upper_range)
-            except:
-                cbar_min_temp, cbar_max_temp = [0, 0.1]
-            cbar_min.append(cbar_min_temp)
-            cbar_max.append(cbar_max_temp)
-
-        # Create a list of colorbar min and max values for each channel slice
-        cbar_min_list = [cbar_min[channel_slice] for channel_slice in range(len(channels))]
-        cbar_max_list = [cbar_max[channel_slice] for channel_slice in range(len(channels))]
-
-        # Create a figure and axes
-        fig, axes = plt.subplots(num_rows, num_cols)
-
-        # Create a list to store the colorbars
-        cbar_list = []
-
-        for channel_slice, ax in enumerate(np.ravel(axes)):
-            if channel_slice < len(channels):
-                ax.set_aspect('equal')
-                contour = ax.contourf(inplane_DIM1, inplane_DIM2, 
-                                    np.nan_to_num(np.log10(np.abs(inplane_field[:, :, channel_slice, 0]))), 
-                                    levels=np.linspace(cbar_min_list[channel_slice], cbar_max_list[channel_slice], 100), 
-                                    cmap='RdBu_r', extend='both')
-                ax.scatter(np.dot(point1, base1), np.dot(point1, base2))
-                ax.scatter(np.dot(point2, base1), np.dot(point2, base2))
-                ax.set_title(f'Subplot {channels[channel_slice]}')
-
-                # Create a colorbar for each subplot
-                cbar = plt.colorbar(contour, ax=ax)
-                cbar_ticks = np.linspace(int(cbar_min_list[channel_slice]), int(cbar_max_list[channel_slice]), 5)
-                cbar_ticklabels = [str(cbar_tick) for cbar_tick in cbar_ticks]
-                cbar.set_ticks(cbar_ticks)
-                cbar.set_ticklabels(cbar_ticklabels)
-                cbar.set_label('Intensity')
-                cbar_list.append(cbar)
-            else:
-                ax.axis('off')
-
-        def update(frame):
-            for channel_slice, ax in enumerate(np.ravel(axes)):
-                if channel_slice < len(channels):
-                    ax.cla()
-                    ax.set_aspect('equal')
-                    contour = ax.contourf(inplane_DIM1, inplane_DIM2, 
-                                        np.nan_to_num(np.log10(np.abs(inplane_field[:, :, channel_slice, frame]))), 
-                                        levels=np.linspace(cbar_min_list[channel_slice], cbar_max_list[channel_slice], 100), 
-                                        cmap='RdBu_r', extend='both')
-                    ax.scatter(np.dot(point1, base1), np.dot(point1, base2))
-                    ax.scatter(np.dot(point2, base1), np.dot(point2, base2))
-                    ax.set_title(f'Subplot {channels[channel_slice]}')
-                else:
-                    ax.axis('off')
-            print(100 * frame / no_frames, '%')
-            return contour
-
-        # Adjust spacing between subplots
-        plt.subplots_adjust(left=0.1, right=0.9, bottom=0.1, top=0.9, wspace=0.3, hspace=0.3)
-
-        # Create the animation
-        ani = animation.FuncAnimation(fig, update, frames=video_duration * frame_rate, interval=1e3 / frame_rate)
-        ani.save(self.path_to_elements_output + '/' + name + '_animation.mp4', writer='ffmpeg')
-
-        # Print the time taken if timeit is True
-        if timeit is True:
-            end_time = time.time()
-            print(end_time - start_time)
-
-
     def _load_data_at_point_parallel_wrapper(self, point, channels, time_slices, indices):
         return (self.load_data_at_point(point=point, channels=channels, time_slices=time_slices, 
                                         coord_in_deg=False), indices)
@@ -905,7 +906,10 @@ class ElementOutput(AxiSEM3DOutput):
         inplane_field = np.zeros((resolution, resolution, len(channels), len(time_slices)))
         pbar = tqdm(total=len(filtered_indices))
         for [index1, index2], point in zip(filtered_indices, filtered_slice_points):
-            inplane_field[index1, index2, :, :] = self.load_data_at_point(point=point, channels=channels, coord_in_deg=False, time_slices=time_slices)
+            inplane_field[index1, index2, :, :] = self.load_data_at_point(point=point, 
+                                                                          channels=channels, 
+                                                                          coord_in_deg=False, 
+                                                                          time_slices=time_slices)
             pbar.update(1)
         pbar.close()
 
@@ -944,8 +948,8 @@ class ElementOutput(AxiSEM3DOutput):
         station_location[1] = np.deg2rad(station_location[1])
         station_location[2] = np.deg2rad(station_location[2])
         # Form vectors for the two points (Earth frame)
-        point1 = sph2cart(source_location[0], source_location[1], source_location[2])
-        point2 = sph2cart(station_location[0], station_location[1], station_location[2])
+        point1 = sph2cart(source_location)
+        point2 = sph2cart(station_location)
 
         # Do Gram-Schmidt orthogonalization to form slice basis (Earth frame)
         base1 = point1 / np.linalg.norm(point1)
@@ -969,8 +973,8 @@ class ElementOutput(AxiSEM3DOutput):
             for index2 in indices_dim2:
                 if radii[index1, index2] < R_max and radii[index1, index2] > R_min \
                     and thetas[index1, index2] < theta_max and thetas[index1, index2] > theta_min:
-                    [x, y, z] = inplane_dim1[index1] * base1 + inplane_dim2[index2] * base2  # Slice frame -> Earth frame
-                    filtered_slice_points.append(cart2sph(x, y, z))
+                    point = inplane_dim1[index1] * base1 + inplane_dim2[index2] * base2  # Slice frame -> Earth frame
+                    filtered_slice_points.append(cart2sph(point))
                     filtered_indices.append([index1, index2])
         if return_slice is False:
             return [filtered_indices, filtered_slice_points]
@@ -1011,6 +1015,7 @@ class ElementOutput(AxiSEM3DOutput):
         
         return [smallest_value, biggest_value] 
 
+
     def _channel_slices(self, channels):
                 # Get channel slices from channels
         if isinstance(channels, list) and all(ch in self.detailed_channels for ch in channels):
@@ -1028,3 +1033,42 @@ class ElementOutput(AxiSEM3DOutput):
             channel_slices = None
 
         return channel_slices
+
+
+    def _find_simulation_path(self, path: str):
+        """Takes in the path to a station file used for axisem3d
+        and returns a stream with the wavefields computed at all stations
+
+        Args:
+            path_to_station_file (str): path to station.txt file
+
+        Returns:
+            parent_directory
+        """
+        current_directory = os.path.abspath(path)
+        while True:
+            parent_directory = os.path.dirname(current_directory)
+            if os.path.basename(current_directory) == 'output':
+                return parent_directory
+            elif current_directory == parent_directory:
+                # Reached the root directory, "output" directory not found
+                return None
+            current_directory = parent_directory
+
+
+    def _check_elements(self, list1, list2):
+        """Checks if all elements in list1 can be found in list2.
+
+        Args:
+            list1 (list): The first list.
+            list2 (list): The second list.
+
+        Returns:
+            bool: True if all elements in list1 are found in list2, False otherwise.
+            list: List of elements from list1 that are not found in list2.
+        """
+        missing_elements = [element for element in list1 if element not in list2]
+        if len(missing_elements) == 0:
+            return True
+        else:
+            return False
