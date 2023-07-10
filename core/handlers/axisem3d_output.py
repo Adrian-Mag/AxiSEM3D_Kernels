@@ -5,7 +5,7 @@ from obspy import UTCDateTime
 from obspy.geodetics import FlinnEngdahl
 import fnmatch
 from obspy import read_events
-
+import glob
 
 class AxiSEM3DOutput:
     """
@@ -20,6 +20,7 @@ class AxiSEM3DOutput:
         inparam_advanced (str): Path to the inparam.advanced.yaml file.
         outputs (dict): Dictionary containing information about the simulation outputs.
         simulation_name (str): Name of the simulation.
+        Earth_Radius (int): Radius of the Earth in meters.
 
     Methods:
         _find_catalogue(): Find the catalogue file.
@@ -28,7 +29,6 @@ class AxiSEM3DOutput:
         catalogue(): Get the simulation catalogue.
 
     """
-
 
     def __init__(self, path_to_simulation):
         """
@@ -62,14 +62,12 @@ class AxiSEM3DOutput:
         Returns:
             obspy.core.event.Catalog or None: Catalog object if a single catalogue file is found, otherwise None.
         """
-        catalogues = self._search_files(self.path_to_simulation + '/input', 'cat.xml')
+        catalogues = glob.glob(os.path.join(self.path_to_simulation, 'input', '*cat.xml'))
         if len(catalogues) == 1:
             return read_events(catalogues[0])
         elif len(catalogues) == 0:
             return None
         else:
-            # Currently there is no function that can check which catalogue is
-            # the correct one
             print('Multiple catalogues were found, therefore we abort.')
             return None
 
@@ -81,56 +79,29 @@ class AxiSEM3DOutput:
         Returns:
             dict: Dictionary containing information about the simulation outputs.
         """
-        path_to_output = self.path_to_simulation + '/output'
-        path_to_elements = path_to_output + '/elements'
-        path_to_stations = path_to_output + '/stations'
-
-        element_outputs_paths = [os.path.join(path_to_elements, name) for name in os.listdir(path_to_elements) if os.path.isdir(os.path.join(path_to_elements, name))]
-        station_outputs_paths = [os.path.join(path_to_stations, name) for name in os.listdir(path_to_stations) if os.path.isdir(os.path.join(path_to_stations, name))]
-
         outputs = {'elements': {}, 'stations': {}}
 
-        for element_output_path in element_outputs_paths:
-            outputs['elements'][os.path.basename(element_output_path)] = {'path': element_output_path, 'obspyfied': {}}
-            obspyfied_path = element_output_path + '/obspyfied'
-            if os.path.exists(obspyfied_path):
-                mseed_files = self._search_files(obspyfied_path, '.mseed')
-                inv_files = self._search_files(obspyfied_path, 'inv.xml')
-                outputs['elements'][os.path.basename(element_output_path)]['obspyfied'] = {'path': obspyfied_path, 'mseed': mseed_files, 'inventory': inv_files}
-
-        for station_output_path in station_outputs_paths:
-            outputs['stations'][os.path.basename(station_output_path)] = {'path': station_output_path, 'obspyfied': {}}
-            obspyfied_path = station_output_path + '/obspyfied'
-            if os.path.exists(obspyfied_path):
-                mseed_files = self._search_files(obspyfied_path, '.mseed')
-                inv_files = self._search_files(obspyfied_path, 'inv.xml')
-                outputs['stations'][os.path.basename(station_output_path)]['obspyfied'] = {'path': obspyfied_path, 'mseed': mseed_files, 'inventory': inv_files}
-
+        for output_type in ['elements', 'stations']:
+            path_to_output = os.path.join(self.path_to_simulation, 'output', output_type)
+            output_dirs = glob.glob(os.path.join(path_to_output, '*'))
+            
+            for output_dir in output_dirs:
+                output_name = os.path.basename(output_dir)
+                outputs[output_type][output_name] = {'path': output_dir, 'obspyfied': {}}
+                obspyfied_path = os.path.join(output_dir, 'obspyfied')
+                
+                if os.path.exists(obspyfied_path):
+                    mseed_files = glob.glob(os.path.join(obspyfied_path, '*.mseed'))
+                    if len(mseed_files) == 0:
+                        mseed_files = None
+                    inv_files = glob.glob(os.path.join(obspyfied_path, '*inv.xml'))
+                    if len(inv_files) == 0:
+                        inv_files = None
+                    outputs[output_type][output_name]['obspyfied'] = {'path': obspyfied_path, 'mseed': mseed_files, 'inventory': inv_files}
+                else:
+                    obspyfied_path = None
+                    outputs[output_type][output_name]['obspyfied'] = None
         return outputs
-
-
-    def _search_files(self, directory, keyword, include_subdirectories=False):
-        """
-        Search for files containing a specific keyword in a directory.
-
-        Args:
-            directory (str): The directory to search in.
-            keyword (str): The specific keyword to search for in file names.
-            include_subdirectories (bool, optional): Determines whether to include subdirectories in the search.
-                Defaults to True.
-
-        Returns:
-            list: A list of file paths that contain the specified keyword.
-        """
-        matches = []
-        for root, dirnames, filenames in os.walk(directory):
-            if not include_subdirectories and root != directory:
-                break
-            for filename in filenames:
-                if fnmatch.fnmatch(filename, '*' + keyword + '*'):
-                    matches.append(os.path.join(root, filename))
-
-        return matches
 
 
     @property
