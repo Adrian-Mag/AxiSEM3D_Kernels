@@ -49,7 +49,7 @@ class AxiSEM3DOutput:
         self.simulation_name = os.path.basename(self.path_to_simulation)
 
         # Info about the source
-        self._catalogue = self._find_catalogue()
+        self._catalogue = self._find_catalogue()[0]
         
         # Info about model
         self.Earth_Radius = 6371000 # m
@@ -62,14 +62,15 @@ class AxiSEM3DOutput:
         Returns:
             obspy.core.event.Catalog or None: Catalog object if a single catalogue file is found, otherwise None.
         """
-        catalogues = glob.glob(os.path.join(self.path_to_simulation, 'input', '*cat.xml'))
+        catalogues = glob.glob(os.path.join(self.path_to_simulation, 'input', '*cat*.xml'))
         if len(catalogues) == 1:
             return read_events(catalogues[0])
         elif len(catalogues) == 0:
-            return None
+            print('No catalogues were found.')
+            return (None, 1)
         else:
             print('Multiple catalogues were found, therefore we abort.')
-            return None
+            return (None, 2)
 
 
     def _find_outputs(self):
