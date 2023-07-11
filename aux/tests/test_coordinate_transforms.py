@@ -26,6 +26,11 @@ class TestSph2Cart(unittest.TestCase):
             with self.subTest(point=point):
                 result = sph2cart(point)
                 np.testing.assert_allclose(result, expected_result, atol=1e-6)
+    
+    def test_sph2cart_negative_radius(self):
+        point = [-1, np.pi/4, np.pi/4]  # Negative radius
+        with self.assertRaises(ValueError):
+            sph2cart(point)
 
 
 class TestCart2Sph(unittest.TestCase):
@@ -84,6 +89,36 @@ class TestSph2Cyl(unittest.TestCase):
             with self.subTest(point=point):
                 result = sph2cyl(point)
                 np.testing.assert_allclose(result, expected_result, atol=1e-6)
+
+    def test_sph2cyl_negative_radial_position(self):
+        point = [-1, np.pi/4, np.pi/6]  # Negative radial position
+        with self.assertRaises(ValueError):
+            sph2cyl(point)
+
+
+class TestCartGeo2CartSrc(unittest.TestCase):
+    def test_cart_geo2cart_src(self):
+        point = np.array([1, 2, 3])
+        rotation_matrix = np.array([[0, -1, 0], [1, 0, 0], [0, 0, 1]])
+
+        expected_result = np.array([2, -1, 3])
+
+        result = cart_geo2cart_src(point, rotation_matrix)
+        np.testing.assert_allclose(result, expected_result, atol=1e-6)
+
+    def test_cart_geo2cart_src_invalid_point(self):
+        point = np.array([1, 2])
+        rotation_matrix = np.array([[0, -1, 0], [1, 0, 0], [0, 0, 1]])
+
+        with self.assertRaises(ValueError):
+            cart_geo2cart_src(point, rotation_matrix)
+
+    def test_cart_geo2cart_src_invalid_rotation_matrix(self):
+        point = np.array([1, 2, 3])
+        rotation_matrix = np.array([[0, -1, 0], [1, 0, 0]])
+
+        with self.assertRaises(ValueError):
+            cart_geo2cart_src(point, rotation_matrix)
 
 
 class TestCart2Polar(unittest.TestCase):
