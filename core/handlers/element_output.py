@@ -54,7 +54,10 @@ class ElementOutput(AxiSEM3DOutput):
         # Get all the data from the output model
         with open(self.inparam_output, 'r') as file:
             output_yaml = yaml.load(file, Loader=yaml.FullLoader)
-            element_group = output_yaml['list_of_element_groups'][0].get(self.element_group_name, {})
+            for dictionary in output_yaml['list_of_element_groups']:
+                if self.element_group_name in dictionary:
+                    element_group = dictionary.get(self.element_group_name, {})
+                    break
             self.horizontal_range = element_group.get('elements', {}).get('horizontal_range')
             self.vertical_range = list(map(float, element_group.get('elements', {}).get('vertical_range', [])))
             self.edge_dimension = element_group.get('inplane', {}).get('edge_dimension')
@@ -379,15 +382,19 @@ class ElementOutput(AxiSEM3DOutput):
                 coeff.imag += interpolated_data[order * 2]
             result += (2.0 * np.exp(1j * order * phi) * coeff).real
 
+        if np.max(np.abs(result)) > 1:
+            print(point) 
+
         return result
 
 
-    def animation(self, source_location: list, station_location: list, channels: list=['U'],
+    def animation(self, source_location: list=None, station_location: list=None, channels: list=['U'],
                           name: str='video', video_duration: int=20, frame_rate: int=10,
                           resolution: int=100, R_min: float=None, R_max: float=None,
                           theta_min: float=-np.pi, theta_max: float=np.pi,
                           lower_range: float=0.6, upper_range: float=0.9999,
-                          paralel_processing: bool=True, timeit: bool=False):
+                          paralel_processing: bool=True, timeit: bool=False,
+                          batch_size: int=1000):
         """
         Generate an animation representing seismic data on a slice frame.
 
@@ -410,6 +417,10 @@ class ElementOutput(AxiSEM3DOutput):
             R_min = self.vertical_range[0]
         if R_max is None:
             R_max = self.vertical_range[1]
+        # Auto points
+        if source_location is None and station_location is None:
+            source_location = [self.Earth_Radius - R_max, 0, 0]
+            station_location = [self.Earth_Radius - R_max, 0, 30]
         
         # Get time slices from frame rate and video_duration assuming that the
         # video will include the entire time axis 
@@ -425,7 +436,7 @@ class ElementOutput(AxiSEM3DOutput):
             inplane_DIM2 = self.load_data_on_slice_parallel(source_location=source_location, station_location=station_location, 
                                                             R_max=R_max, R_min=R_min, theta_min=theta_min, theta_max=theta_max,
                                                             resolution=resolution, channels=channels, 
-                                                            time_slices=time_slices, return_slice=True)
+                                                            time_slices=time_slices, return_slice=True, batch_size=batch_size)
         else:
             inplane_field, point1, point2, \
             base1, base2, inplane_DIM1, \
@@ -461,7 +472,7 @@ class ElementOutput(AxiSEM3DOutput):
 
         # Create a list to store the colorbars
         cbar_list = []
-
+        cbar_ticks_list = []
         for channel_slice, ax in enumerate(np.ravel(axes)):
             if channel_slice < len(channels):
                 ax.set_aspect('equal')
@@ -476,6 +487,7 @@ class ElementOutput(AxiSEM3DOutput):
                 # Create a colorbar for each subplot
                 cbar = plt.colorbar(contour, ax=ax)
                 cbar_ticks = np.linspace(int(cbar_min_list[channel_slice]), int(cbar_max_list[channel_slice]), 5)
+                cbar_ticks_list.append(cbar_ticks)
                 cbar_ticklabels = [str(cbar_tick) for cbar_tick in cbar_ticks]
                 cbar.set_ticks(cbar_ticks)
                 cbar.set_ticklabels(cbar_ticklabels)
@@ -773,7 +785,8 @@ class ElementOutput(AxiSEM3DOutput):
     
     def load_data_on_slice_parallel(self, source_location: list, station_location: list,
                                     R_max: float, R_min: float, theta_min: float, theta_max: float,
-                                    resolution: int, channels: list, time_slices: list, return_slice: bool=False):
+                                    resolution: int, channels: list, time_slices: list, return_slice: bool=False,
+                                    batch_size: int=1000):
         """
         Load data on a slice of points within a specified radius range and
         resolution using parallel processing and batching.
@@ -820,7 +833,6 @@ class ElementOutput(AxiSEM3DOutput):
         pbar = tqdm(total=len(filtered_indices))
 
         with concurrent.futures.ProcessPoolExecutor() as executor:
-            batch_size = 1000  # Adjust the batch size as needed
             num_batches = len(filtered_indices) // batch_size
             remaining_tasks = len(filtered_indices) % batch_size
             
@@ -1048,7 +1060,7 @@ class ElementOutput(AxiSEM3DOutput):
         current_directory = os.path.abspath(path)
         while True:
             parent_directory = os.path.dirname(current_directory)
-            if os.path.basename(current_directory) == 'output':
+            if 'output' in os.path.basename(current_directory):
                 return parent_directory
             elif current_directory == parent_directory:
                 # Reached the root directory, "output" directory not found

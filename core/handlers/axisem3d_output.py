@@ -6,6 +6,7 @@ from obspy.geodetics import FlinnEngdahl
 import fnmatch
 from obspy import read_events
 import glob
+import pandas as pd
 
 class AxiSEM3DOutput:
     """
@@ -30,7 +31,7 @@ class AxiSEM3DOutput:
 
     """
 
-    def __init__(self, path_to_simulation):
+    def __init__(self, path_to_simulation, path_to_base_model: str=None):
         """
         Initialize the AxiSEM3DOutput instance.
 
@@ -51,8 +52,89 @@ class AxiSEM3DOutput:
         # Info about the source
         self._catalogue = self._find_catalogue()[0]
         
-        # Info about model
-        self.Earth_Radius = 6371000 # m
+        # Info about model (currently only for global models)
+
+        # Get info about the base model
+        if path_to_base_model is None:
+            # We search for a bm file in the input folder
+            bm_files = glob.glob(os.path.join(self.path_to_simulation, 'input', '*.bm'))
+            path_to_base_model = bm_files[0]
+        
+        # Get base model data
+        self.base_model = self.read_model_file(path_to_base_model)
+        if 'axisem3d' in os.path.basename(path_to_base_model):
+            self.Earth_Radius = self.base_model['DISCONTINUITIES'][0]  
+        else:
+            self.Earth_Radius = max(self.base_model['DATA']['radius'])
+        if self.base_model['UNITS'] == 'km':
+            self.Earth_Radius *= 1e3              
+        with open(self.inparam_model, 'r') as file:
+            model_yaml = yaml.load(file, Loader=yaml.FullLoader)
+            # Check for any 3D models
+            if len(model_yaml['list_of_3D_models']) == 0:
+                self.threeD_models = None
+            else:
+                pass
+
+
+    def read_model_file(self, file_path):
+        if 'axisem3d' in os.path.basename(file_path):
+            # The bm file is of axisem3d type
+            data = {}
+            with open(file_path, 'r') as file:
+                lines = file.readlines()
+
+            i = 0
+            while i < len(lines):
+                line = lines[i].strip()
+                if not line.startswith('#') and line:
+                    key, *values = line.split()
+                    if key in ['NAME', 'MODEL_TYPE', 'ANELASTIC', 'ANISOTROPIC', 'UNITS']:
+                        data[key] = values[0]
+                    elif key in ['COLUMNS']:
+                        data[key] = values
+                    elif key in ['DISCONTINUITIES']:
+                        data[key] = [float(value) for value in values]
+                    elif key in ['REFERENCE_FREQUENCY', 'NREGIONS', 'MAX_POLY_DEG', 'SCALE']:
+                        data[key] = float(values[0])
+                    elif key in ['RHO', 'VP', 'VS', 'QKAPPA', 'QMU']:
+                        j = i + 1
+                        values = []
+                        while j < len(lines):
+                            line = lines[j].strip()
+                            if line.startswith('#') or not line:
+                                break
+                            values.append(float(line))
+                            j += 1
+                        data[key] = values
+
+                i += 1 
+        else:
+            # The bm file is of axisem type
+            data = {}
+            with open(file_path, 'r') as file:
+                lines = file.readlines()
+
+            create_data_lists = True
+            i = 0
+            while i < len(lines):
+                line = lines[i].strip()
+                if not line.startswith('#') and line:
+                    key, *values = line.split()
+                    if key in ['NAME', 'ANELASTIC', 'ANISOTROPIC', 'UNITS']:
+                        data[key] = values[0]
+                    elif key in ['COLUMNS']:
+                        data[key] = values
+                    else:
+                        if create_data_lists:
+                            create_data_lists = False
+                            data['DATA'] = {}
+                            for key in data['COLUMNS']:
+                                data['DATA'][key] = []
+                        for index, key in enumerate(data['COLUMNS']):
+                            data['DATA'][key].append(float(line.split()[index]))
+                i += 1
+        return data
 
 
     def _find_catalogue(self):
