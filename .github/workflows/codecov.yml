@@ -4,11 +4,11 @@ on:
   push:
     branches:
       - main
-      - aux_testing
+      - testing
   pull_request:
     branches:
       - main
-      - aux_testing
+      - testing
 
 jobs:
   run_tests:
@@ -39,6 +39,7 @@ jobs:
         - name: Run tests with coverage
           run: |
             conda run --name test coverage run --source axisem3d_output -m pytest
+            conda run --name test coverage xml
             conda run --name test coverage report -m
 
         - name: Upload coverage to Codecov

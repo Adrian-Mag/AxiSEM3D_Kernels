@@ -5,7 +5,8 @@ from obspy import UTCDateTime
 from obspy.geodetics import FlinnEngdahl
 import fnmatch
 from obspy import read_events
-
+import glob
+import pandas as pd
 
 class AxiSEM3DOutput:
     """
@@ -20,6 +21,7 @@ class AxiSEM3DOutput:
         inparam_advanced (str): Path to the inparam.advanced.yaml file.
         outputs (dict): Dictionary containing information about the simulation outputs.
         simulation_name (str): Name of the simulation.
+        Earth_Radius (int): Radius of the Earth in meters.
 
     Methods:
         _find_catalogue(): Find the catalogue file.
@@ -29,8 +31,7 @@ class AxiSEM3DOutput:
 
     """
 
-
-    def __init__(self, path_to_simulation):
+    def __init__(self, path_to_simulation, path_to_base_model: str=None):
         """
         Initialize the AxiSEM3DOutput instance.
 
@@ -49,9 +50,92 @@ class AxiSEM3DOutput:
         self.simulation_name = os.path.basename(self.path_to_simulation)
 
         # Info about the source
-        self._catalogue = self._find_catalogue()
-        # Info about model
-        self.Earth_Radius = 6371000 # m
+        self._catalogue = self._find_catalogue()[0]
+        
+        # Info about model (currently only for global models)
+
+        # Get info about the base model
+        if path_to_base_model is None:
+            # We search for a bm file in the input folder
+            bm_files = glob.glob(os.path.join(self.path_to_simulation, 'input', '*.bm'))
+            path_to_base_model = bm_files[0]
+        
+        # Get base model data
+        self.base_model = self.read_model_file(path_to_base_model)
+        if 'axisem3d' in os.path.basename(path_to_base_model):
+            self.Earth_Radius = self.base_model['DISCONTINUITIES'][0]  
+        else:
+            self.Earth_Radius = max(self.base_model['DATA']['radius'])
+        with open(self.inparam_model, 'r') as file:
+            model_yaml = yaml.load(file, Loader=yaml.FullLoader)
+            # Check for any 3D models
+            if len(model_yaml['list_of_3D_models']) == 0:
+                self.threeD_models = None
+            else:
+                pass
+
+    def read_model_file(self, file_path):
+        if 'axisem3d' in os.path.basename(file_path):
+            # The bm file is of axisem3d type
+            data = {}
+            with open(file_path, 'r') as file:
+                lines = file.readlines()
+
+            possible_model_properties = ['RHO', 'VP', 'VS', 'QKAPPA', 'QMU']
+            unit_dependent_model_properties = ['RHO', 'VP', 'VS']
+            i = 0
+            while i < len(lines):
+                line = lines[i].strip()
+                if not line.startswith('#') and line:
+                    key, *values = line.split()
+                    if key in ['NAME', 'MODEL_TYPE', 'ANELASTIC', 'ANISOTROPIC', 'UNITS']:
+                        data[key] = values[0]
+                    elif key in ['COLUMNS']:
+                        data[key] = values
+                    elif key in ['DISCONTINUITIES']:
+                        data[key] = [float(value) for value in values]
+                    elif key in ['REFERENCE_FREQUENCY', 'NREGIONS', 'MAX_POLY_DEG', 'SCALE']:
+                        data[key] = float(values[0])
+                    elif key in possible_model_properties:
+                        j = i + 1
+                        values = []
+                        while j < len(lines):
+                            line = lines[j].strip()
+                            if line.startswith('#') or not line:
+                                break
+                            values.append(float(line))
+                            j += 1
+                        data[key] = values
+                i += 1 
+            for key in unit_dependent_model_properties:
+                data[key] = [element * 1e3 for element in data[key]]
+            data['DISCONTINUITIES'] = [element * 1e3 for element in data['DISCONTINUITIES']]
+        else:
+            # The bm file is of axisem type
+            data = {}
+            with open(file_path, 'r') as file:
+                lines = file.readlines()
+
+            create_data_lists = True
+            i = 0
+            while i < len(lines):
+                line = lines[i].strip()
+                if not line.startswith('#') and line:
+                    key, *values = line.split()
+                    if key in ['NAME', 'ANELASTIC', 'ANISOTROPIC', 'UNITS']:
+                        data[key] = values[0]
+                    elif key in ['COLUMNS']:
+                        data[key] = values
+                    else:
+                        if create_data_lists:
+                            create_data_lists = False
+                            data['DATA'] = {}
+                            for key in data['COLUMNS']:
+                                data['DATA'][key] = []
+                        for index, key in enumerate(data['COLUMNS']):
+                            data['DATA'][key].append(float(line.split()[index]))
+                i += 1
+        return data
 
 
     def _find_catalogue(self):
@@ -61,16 +145,15 @@ class AxiSEM3DOutput:
         Returns:
             obspy.core.event.Catalog or None: Catalog object if a single catalogue file is found, otherwise None.
         """
-        catalogues = self._search_files(self.path_to_simulation + '/input', 'cat.xml')
+        catalogues = glob.glob(os.path.join(self.path_to_simulation, 'input', '*cat*.xml'))
         if len(catalogues) == 1:
             return read_events(catalogues[0])
         elif len(catalogues) == 0:
-            return None
+            print('No catalogues were found.')
+            return (None, 1)
         else:
-            # Currently there is no function that can check which catalogue is
-            # the correct one
             print('Multiple catalogues were found, therefore we abort.')
-            return None
+            return (None, 2)
 
 
     def _find_outputs(self):
@@ -80,56 +163,29 @@ class AxiSEM3DOutput:
         Returns:
             dict: Dictionary containing information about the simulation outputs.
         """
-        path_to_output = self.path_to_simulation + '/output'
-        path_to_elements = path_to_output + '/elements'
-        path_to_stations = path_to_output + '/stations'
-
-        element_outputs_paths = [os.path.join(path_to_elements, name) for name in os.listdir(path_to_elements) if os.path.isdir(os.path.join(path_to_elements, name))]
-        station_outputs_paths = [os.path.join(path_to_stations, name) for name in os.listdir(path_to_stations) if os.path.isdir(os.path.join(path_to_stations, name))]
-
         outputs = {'elements': {}, 'stations': {}}
 
-        for element_output_path in element_outputs_paths:
-            outputs['elements'][os.path.basename(element_output_path)] = {'path': element_output_path, 'obspyfied': {}}
-            obspyfied_path = element_output_path + '/obspyfied'
-            if os.path.exists(obspyfied_path):
-                mseed_files = self._search_files(obspyfied_path, '.mseed')
-                inv_files = self._search_files(obspyfied_path, 'inv.xml')
-                outputs['elements'][os.path.basename(element_output_path)]['obspyfied'] = {'path': obspyfied_path, 'mseed': mseed_files, 'inventory': inv_files}
-
-        for station_output_path in station_outputs_paths:
-            outputs['stations'][os.path.basename(station_output_path)] = {'path': station_output_path, 'obspyfied': {}}
-            obspyfied_path = station_output_path + '/obspyfied'
-            if os.path.exists(obspyfied_path):
-                mseed_files = self._search_files(obspyfied_path, '.mseed')
-                inv_files = self._search_files(obspyfied_path, 'inv.xml')
-                outputs['stations'][os.path.basename(station_output_path)]['obspyfied'] = {'path': obspyfied_path, 'mseed': mseed_files, 'inventory': inv_files}
-
+        for output_type in ['elements', 'stations']:
+            path_to_output = os.path.join(self.path_to_simulation, 'output', output_type)
+            output_dirs = glob.glob(os.path.join(path_to_output, '*'))
+            
+            for output_dir in output_dirs:
+                output_name = os.path.basename(output_dir)
+                outputs[output_type][output_name] = {'path': output_dir, 'obspyfied': {}}
+                obspyfied_path = os.path.join(output_dir, 'obspyfied')
+                
+                if os.path.exists(obspyfied_path):
+                    mseed_files = glob.glob(os.path.join(obspyfied_path, '*.mseed'))
+                    if len(mseed_files) == 0:
+                        mseed_files = None
+                    inv_files = glob.glob(os.path.join(obspyfied_path, '*inv.xml'))
+                    if len(inv_files) == 0:
+                        inv_files = None
+                    outputs[output_type][output_name]['obspyfied'] = {'path': obspyfied_path, 'mseed': mseed_files, 'inventory': inv_files}
+                else:
+                    obspyfied_path = None
+                    outputs[output_type][output_name]['obspyfied'] = None
         return outputs
-
-
-    def _search_files(self, directory, keyword, include_subdirectories=False):
-        """
-        Search for files containing a specific keyword in a directory.
-
-        Args:
-            directory (str): The directory to search in.
-            keyword (str): The specific keyword to search for in file names.
-            include_subdirectories (bool, optional): Determines whether to include subdirectories in the search.
-                Defaults to True.
-
-        Returns:
-            list: A list of file paths that contain the specified keyword.
-        """
-        matches = []
-        for root, dirnames, filenames in os.walk(directory):
-            if not include_subdirectories and root != directory:
-                break
-            for filename in filenames:
-                if fnmatch.fnmatch(filename, '*' + keyword + '*'):
-                    matches.append(os.path.join(root, filename))
-
-        return matches
 
 
     @property

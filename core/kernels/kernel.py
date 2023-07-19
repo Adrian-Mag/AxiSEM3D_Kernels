@@ -62,28 +62,7 @@ class L2Kernel():
         sensitivity_df.to_csv(sensitivity_out_path + '/' + 'sensitivity_rho.txt', sep=' ', index=False)
 
 
-    def _point_in_region_of_interest(self, point)-> bool:
-        if random.random() < 0.01:
-            max_lat = 30
-            min_lat = -30
-            min_lon = -30
-            max_lon = 30
-            min_rad = 3400000
-            max_rad = 6371000
-            if point[0] < max_rad and point[0] > min_rad \
-                and np.rad2deg(point[1]) < max_lat and np.rad2deg(point[1]) > min_lat \
-                and np.rad2deg(point[2]) < max_lon and np.rad2deg(point[2]) > min_lon:
-                return True
-            else:
-                return False
-        else:
-            return False
-
-
     def evaluate_rho_0(self, point):
-        """ in_region = self._point_in_region_of_interest(point)
-        if in_region: print(point[0], np.rad2deg(point[1]), np.rad2deg(point[2]))
-        """
         # get forwards and backward waveforms at this point
         forward_waveform = np.nan_to_num(self.forward_data.load_data_at_point(point, channels=['U']))
         backward_waveform = np.nan_to_num(self.backward_data.load_data_at_point(point, channels=['U']))
@@ -109,26 +88,6 @@ class L2Kernel():
 
         # make dot product 
         fw_bw = (interp_dfwdt * interp_dbwdt).sum(axis=0)
-        
-        """ if in_region:
-            fig1, axs = plt.subplots(2,3)
-            for chn in range(len(forward_waveform)):
-                axs[0, chn].plot(fw_time, forward_waveform[chn,0:-1])
-                axs[1, chn].plot(bw_time, backward_waveform[chn,0:-1])
-            fig2, axs = plt.subplots(2,3)
-            for chn in range(len(forward_waveform)):
-                axs[0, chn].plot(fw_time, dfwdt[chn,:])
-                axs[1, chn].plot(bw_time, dbwdt[chn,:])
-            fig3, axs = plt.subplots(2,3)
-            for chn in range(len(forward_waveform)):
-                axs[0, chn].plot(self.master_time, interp_dfwdt[chn,:])
-                axs[1, chn].plot(self.master_time, reversed_interp_dbwdt[chn,:])
-            fig4, axs = plt.subplots(1,3)
-            for chn in range(len(forward_waveform)):
-                axs[chn].plot(self.master_time, interp_dfwdt[chn,:] * reversed_interp_dbwdt[chn,:])
-            fig5 = plt.figure()
-            plt.plot(self.master_time, (interp_dfwdt * reversed_interp_dbwdt).sum(axis=0))
-            plt.show() """
 
         sensitivity = integrate.simpson(fw_bw, dx=(self.master_time[1] - self.master_time[0]))
         return sensitivity
@@ -137,7 +96,7 @@ class L2Kernel():
     def evaluate_lambda_0(self, point):
         # K_lambda^zero = int_T (div u)(div u^t) = int_T (tr E)(tr E^t) = 
         # int_T (EZZ+ERR+ETT)(EZZ^t+ERR^t+ETT^t)
-        # 
+
         # get forwards and backward waveforms at this point
         forward_waveform = np.nan_to_num(self.forward_data.load_data_at_point(point, channels=['EZZ', 'ERR', 'ETT']))
         backward_waveform = np.nan_to_num(self.backward_data.load_data_at_point(point, channels=['EZZ', 'ERR', 'ETT']))
@@ -161,18 +120,39 @@ class L2Kernel():
 
 
     def evaluate_mu_0(self, point):
-        # get forwards and backward waveforms at this point
-        forward_waveform = np.nan_to_num(self.forward_data.load_data_at_point(point, channels=['E']))
-        backward_waveform = np.nan_to_num(self.backward_data.load_data_at_point(point, channels=['E']))
+        # K_mu_0 = int_T (grad u^t):(grad u) + (grad u^t):(grad u)^T 
+        # = int_T 2E^t:E
 
+        # get forwards and backward waveforms at this point
+        E = np.nan_to_num(self.forward_data.load_data_at_point(point, channels=['E']))
+        E_adjoint = np.nan_to_num(self.backward_data.load_data_at_point(point, channels=['E']))
+
+        # flip adjoint in time
+        E_adjoint = np.flip(E_adjoint)
+        
+        # Project both arrays on the master time
+        interp_E = []
+        interp_E_adjoint = []
+        for i in range(6):
+            interp_E.append(np.interp(self.master_time, self.fw_time, E[i]))
+            interp_E_adjoint.append(np.interp(self.master_time, self.bw_time, E_adjoint[i]))
+        interp_E = np.array(interp_E)
+        interp_E_adjoint = np.array(interp_E_adjoint)
+            
+        weights = np.array([1, 1, 1, 2, 2, 2])
+        # Multiply 
+        integrand = 2 * np.sum((interp_E_adjoint * interp_E) * weights[:, np.newaxis], axis=1)
+
+        return integrate.simpson(integrand, dx = (self.master_time[1] - self.master_time[0]))
 
     def evaluate_on_slice(self, source_loc: list, station_loc: list,
-                          R_min: float, R_max: float, N: int, slice_out_path: str,
+                          R_min: float, R_max: float, theta_min: float, theta_max: float, 
+                          N: int, slice_out_path: str, show_points: bool=False,
                           log_plot: bool=False, low_range: float=0.1, high_range: float=0.999):
         
         filtered_indices, filtered_slice_points, \
         point1, point2, base1, base2, \
-        inplane_DIM1, inplane_DIM2 = self.forward_data._create_slice(source_loc, station_loc, R_max=R_max, theta_min=0, theta_max=np.pi,
+        inplane_DIM1, inplane_DIM2 = self.forward_data._create_slice(source_loc, station_loc, R_max=R_max, theta_min=theta_min, theta_max=theta_max,
                                                                         R_min=R_min, resolution=N, return_slice=True)
         # Initialize sensitivity values on the slice (Slice frame)
         inplane_sensitivity = np.zeros((N, N))
@@ -184,7 +164,7 @@ class L2Kernel():
         
         if log_plot is False:
             _, cbar_max = self._find_range(inplane_sensitivity, percentage_min=0, percentage_max=1)
-            cbar_max *= high_range
+            cbar_max *= (high_range * high_range)
             cbar_min = -cbar_max
             plt.figure()
             contour = plt.contourf(inplane_DIM1, inplane_DIM2, np.nan_to_num(inplane_sensitivity),
@@ -195,12 +175,13 @@ class L2Kernel():
             plt.figure()
             contour = plt.contourf(inplane_DIM1, inplane_DIM2, np.log10(np.abs(inplane_sensitivity)),
                         levels=np.linspace(cbar_min, cbar_max, 100), cmap='RdBu_r', extend='both')
-        plt.scatter(np.dot(point1, base1), np.dot(point1, base2))
-        plt.scatter(np.dot(point2, base1), np.dot(point2, base2))
+        if show_points:
+            plt.scatter(np.dot(point1, base1), np.dot(point1, base2))
+            plt.scatter(np.dot(point2, base1), np.dot(point2, base2))
         cbar = plt.colorbar(contour)
 
         cbar_ticks = np.linspace(cbar_min, cbar_max, 5) # Example tick values
-        cbar_ticklabels = [str(cbar_tick) for cbar_tick in cbar_ticks] # Example tick labels
+        cbar_ticklabels = ["{:.2e}".format(cbar_tick) for cbar_tick in cbar_ticks] # Example tick labels
         cbar.set_ticks(cbar_ticks)
         cbar.set_ticklabels(cbar_ticklabels)
         cbar.set_label('Intensity')
@@ -237,3 +218,21 @@ class L2Kernel():
         biggest_value = sorted_arr[percentile_index_max]
         
         return [smallest_value, biggest_value]   
+
+    
+    def _point_in_region_of_interest(self, point)-> bool:
+        if random.random() < 0.01:
+            max_lat = 30
+            min_lat = -30
+            min_lon = -30
+            max_lon = 30
+            min_rad = 3400000
+            max_rad = 6371000
+            if point[0] < max_rad and point[0] > min_rad \
+                and np.rad2deg(point[1]) < max_lat and np.rad2deg(point[1]) > min_lat \
+                and np.rad2deg(point[2]) < max_lon and np.rad2deg(point[2]) > min_lon:
+                return True
+            else:
+                return False
+        else:
+            return False
