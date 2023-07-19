@@ -66,8 +66,6 @@ class AxiSEM3DOutput:
             self.Earth_Radius = self.base_model['DISCONTINUITIES'][0]  
         else:
             self.Earth_Radius = max(self.base_model['DATA']['radius'])
-        if self.base_model['UNITS'] == 'km':
-            self.Earth_Radius *= 1e3              
         with open(self.inparam_model, 'r') as file:
             model_yaml = yaml.load(file, Loader=yaml.FullLoader)
             # Check for any 3D models
@@ -76,7 +74,6 @@ class AxiSEM3DOutput:
             else:
                 pass
 
-
     def read_model_file(self, file_path):
         if 'axisem3d' in os.path.basename(file_path):
             # The bm file is of axisem3d type
@@ -84,6 +81,8 @@ class AxiSEM3DOutput:
             with open(file_path, 'r') as file:
                 lines = file.readlines()
 
+            possible_model_properties = ['RHO', 'VP', 'VS', 'QKAPPA', 'QMU']
+            unit_dependent_model_properties = ['RHO', 'VP', 'VS']
             i = 0
             while i < len(lines):
                 line = lines[i].strip()
@@ -97,7 +96,7 @@ class AxiSEM3DOutput:
                         data[key] = [float(value) for value in values]
                     elif key in ['REFERENCE_FREQUENCY', 'NREGIONS', 'MAX_POLY_DEG', 'SCALE']:
                         data[key] = float(values[0])
-                    elif key in ['RHO', 'VP', 'VS', 'QKAPPA', 'QMU']:
+                    elif key in possible_model_properties:
                         j = i + 1
                         values = []
                         while j < len(lines):
@@ -107,8 +106,10 @@ class AxiSEM3DOutput:
                             values.append(float(line))
                             j += 1
                         data[key] = values
-
                 i += 1 
+            for key in unit_dependent_model_properties:
+                data[key] = [element * 1e3 for element in data[key]]
+            data['DISCONTINUITIES'] = [element * 1e3 for element in data['DISCONTINUITIES']]
         else:
             # The bm file is of axisem type
             data = {}
