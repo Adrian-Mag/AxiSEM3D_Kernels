@@ -14,6 +14,7 @@ import obspy
 from obspy.core.inventory import Inventory, Network, Station, Channel
 from tqdm import tqdm
 import concurrent.futures
+from concurrent.futures import ThreadPoolExecutor
 import time
 
 from .axisem3d_output import AxiSEM3DOutput
@@ -452,13 +453,7 @@ class ElementOutput(AxiSEM3DOutput):
         num_rows = int(np.ceil(num_subplots / 2))
         num_cols = 2 if num_subplots > 1 else 1
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
         # Make a cbar
->>>>>>> fix_animation
-=======
->>>>>>> fix_animation
         cbar_min = []
         cbar_max = []
         for channel_slice in range(len(channels)):
@@ -470,22 +465,6 @@ class ElementOutput(AxiSEM3DOutput):
             cbar_min.append(cbar_min_temp)
             cbar_max.append(cbar_max_temp)
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> fix_animation
-        # Create a list of colorbar min and max values for each channel slice
-        cbar_min_list = [cbar_min[channel_slice] for channel_slice in range(len(channels))]
-        cbar_max_list = [cbar_max[channel_slice] for channel_slice in range(len(channels))]
-
-<<<<<<< HEAD
-        # Create a figure and axes
-        fig, axes = plt.subplots(num_rows, num_cols)
-
-        # Create a list to store the colorbars
-        cbar_list = []
-        cbar_ticks_list = []
-=======
         # Set font size
         plt.rcParams.update({'font.size': 6})
         
@@ -504,31 +483,12 @@ class ElementOutput(AxiSEM3DOutput):
 
         # Find out which discontinuities (from base model) appear in the animation
         discontinuities_to_plot = [discontinuity for discontinuity in self.base_model['DISCONTINUITIES'] if R_min <= discontinuity <= R_max]
->>>>>>> fix_animation
-=======
-        # Create a figure and axes
-        fig, axes = plt.subplots(num_rows, num_cols)
-
-        # Create a list to store the colorbars
-        cbar_list = []
-        cbar_ticks_list = []
->>>>>>> fix_animation
         for channel_slice, ax in enumerate(np.ravel(axes)):
             if channel_slice < len(channels):
                 ax.set_aspect('equal')
                 contour = ax.contourf(inplane_DIM1, inplane_DIM2, 
-<<<<<<< HEAD
-<<<<<<< HEAD
-                                    np.nan_to_num(np.log10(np.abs(inplane_field[:, :, channel_slice, 0]))), 
-                                    levels=np.linspace(cbar_min_list[channel_slice], cbar_max_list[channel_slice], 100), 
-=======
                                     processed_values[:, :, channel_slice, 0], 
                                     levels=np.linspace(cbar_min[channel_slice], cbar_max[channel_slice], 100), 
->>>>>>> fix_animation
-=======
-                                    np.nan_to_num(np.log10(np.abs(inplane_field[:, :, channel_slice, 0]))), 
-                                    levels=np.linspace(cbar_min_list[channel_slice], cbar_max_list[channel_slice], 100), 
->>>>>>> fix_animation
                                     cmap='RdBu_r', extend='both')
                 ax.scatter(np.dot(point1, base1), np.dot(point1, base2))
                 ax.scatter(np.dot(point2, base1), np.dot(point2, base2))
@@ -536,31 +496,11 @@ class ElementOutput(AxiSEM3DOutput):
 
                 # Create a colorbar for each subplot
                 cbar = plt.colorbar(contour, ax=ax)
-<<<<<<< HEAD
-<<<<<<< HEAD
-                cbar_ticks = np.linspace(int(cbar_min_list[channel_slice]), int(cbar_max_list[channel_slice]), 5)
-                cbar_ticks_list.append(cbar_ticks)
-                cbar_ticklabels = [str(cbar_tick) for cbar_tick in cbar_ticks]
-                cbar.set_ticks(cbar_ticks)
-                cbar.set_ticklabels(cbar_ticklabels)
-                cbar.set_label('Intensity')
-                cbar_list.append(cbar)
-=======
                 cbar_ticks = np.linspace(cbar_min[channel_slice], cbar_max[channel_slice], 5)
                 cbar_ticklabels = ['{:0.1e}'.format(cbar_tick) for cbar_tick in cbar_ticks]
                 cbar.set_ticks(cbar_ticks)
                 cbar.set_ticklabels(cbar_ticklabels)
                 cbar.set_label('Intensity')
->>>>>>> fix_animation
-=======
-                cbar_ticks = np.linspace(int(cbar_min_list[channel_slice]), int(cbar_max_list[channel_slice]), 5)
-                cbar_ticks_list.append(cbar_ticks)
-                cbar_ticklabels = [str(cbar_tick) for cbar_tick in cbar_ticks]
-                cbar.set_ticks(cbar_ticks)
-                cbar.set_ticklabels(cbar_ticklabels)
-                cbar.set_label('Intensity')
-                cbar_list.append(cbar)
->>>>>>> fix_animation
             else:
                 ax.axis('off')
 
@@ -569,12 +509,6 @@ class ElementOutput(AxiSEM3DOutput):
                 if channel_slice < len(channels):
                     ax.cla()
                     ax.set_aspect('equal')
-<<<<<<< HEAD
-<<<<<<< HEAD
-                    contour = ax.contourf(inplane_DIM1, inplane_DIM2, 
-                                        np.nan_to_num(np.log10(np.abs(inplane_field[:, :, channel_slice, frame]))), 
-                                        levels=np.linspace(cbar_min_list[channel_slice], cbar_max_list[channel_slice], 100), 
-=======
                     # Color everything outside the circle in white
                     outside_circle = plt.Circle((0, 0), R_max, color='white', fill=True)
                     ax.add_artist(outside_circle)
@@ -582,27 +516,15 @@ class ElementOutput(AxiSEM3DOutput):
                     contour = ax.contourf(inplane_DIM1, inplane_DIM2, 
                                         processed_values[:, :, channel_slice, frame], 
                                         levels=np.linspace(cbar_min[channel_slice], cbar_max[channel_slice], 100), 
->>>>>>> fix_animation
-=======
-                    contour = ax.contourf(inplane_DIM1, inplane_DIM2, 
-                                        np.nan_to_num(np.log10(np.abs(inplane_field[:, :, channel_slice, frame]))), 
-                                        levels=np.linspace(cbar_min_list[channel_slice], cbar_max_list[channel_slice], 100), 
->>>>>>> fix_animation
                                         cmap='RdBu_r', extend='both')
                     ax.scatter(np.dot(point1, base1), np.dot(point1, base2))
                     ax.scatter(np.dot(point2, base1), np.dot(point2, base2))
                     ax.set_title(f'Subplot {channels[channel_slice]}')
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
                     
                     # Add a circle with radius R to the plot
                     for r in discontinuities_to_plot:
                         circle = plt.Circle((0, 0), r, color='black', fill=False)
                         ax.add_artist(circle)
->>>>>>> fix_animation
-=======
->>>>>>> fix_animation
                 else:
                     ax.axis('off')
             print(100 * frame / no_frames, '%')
@@ -874,8 +796,8 @@ class ElementOutput(AxiSEM3DOutput):
 
 
     def _load_data_at_point_parallel_wrapper(self, point, channels, time_slices, indices):
-        return (self.load_data_at_point(point=point, channels=channels, time_slices=time_slices, 
-                                        coord_in_deg=False), indices)
+        return [self.load_data_at_point(point=point, channels=channels, time_slices=time_slices, 
+                                        coord_in_deg=False), indices]
 
     
     def load_data_on_slice_parallel(self, source_location: list, station_location: list,
@@ -927,15 +849,7 @@ class ElementOutput(AxiSEM3DOutput):
     
         pbar = tqdm(total=len(filtered_indices))
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-        with concurrent.futures.ProcessPoolExecutor() as executor:
-=======
         with concurrent.futures.ThreadPoolExecutor() as executor:
->>>>>>> fix_animation
-=======
-        with concurrent.futures.ProcessPoolExecutor() as executor:
->>>>>>> fix_animation
             num_batches = len(filtered_indices) // batch_size
             remaining_tasks = len(filtered_indices) % batch_size
             
@@ -951,7 +865,7 @@ class ElementOutput(AxiSEM3DOutput):
                     inplane_field[int(index1), int(index2), :, :] = future.result()[0]
                     
                     pbar.update(1)
-            
+
             # Process the remaining tasks (if any)
             if remaining_tasks > 0:
                 batch_indices = filtered_indices[-remaining_tasks:]
