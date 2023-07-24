@@ -17,6 +17,8 @@ import concurrent.futures
 from concurrent.futures import ThreadPoolExecutor
 import time
 
+from mayavi import mlab
+
 from .axisem3d_output import AxiSEM3DOutput
 from ...aux.coordinate_transforms import sph2cart, cart2sph, cart2polar, cart_geo2cart_src, cart2cyl
 
@@ -319,6 +321,91 @@ class ElementOutput(AxiSEM3DOutput):
 
         return stream
     
+    def load_data(self, points: np.ndarray, frame: str='geographic', coords: str='spherical', in_deg: bool=True):
+        permutation = np.array(range(len(points)))
+        # If only one point, we will make it an array or array
+        if len(points) == 3:
+            points = points.reshape((1,3))
+        
+        # Transforms points to cylindrical coords in source frame
+        if frame == 'geographic':
+            if coords == 'spherical':
+                if in_deg is True:
+                    points[:, 1:] = np.radians(points[:, 1:])
+                points = sph2cart(points)
+            points = cart2cyl(cart_geo2cart_src(points=points, rotation_matrix=self.rotation_matrix))
+        
+        # Find unique points in the inplane domain
+        _, unique_indices, reverse_indices = np.unique(points[:,0:2], axis=0, return_index=True, return_inverse=True)
+        unique_points = points[unique_indices]
+        # Create element map for the points
+        element_centers = self.list_element_coords[:, 4, :]  # Assuming the center point is at index 4
+        differences = element_centers[:, np.newaxis] - points[:,0:2]
+        distances = np.linalg.norm(differences, axis=2)
+
+        # Find the index of the element with the minimum distance for each input point
+        closest_element_indices = np.argmin(distances, axis=0)
+        # Find the indices where each element of element_indices should be inserted into index_limits
+        file_indices = np.searchsorted(self.elements_index_limits, closest_element_indices, side='right') - 1
+        
+        print('a')
+
+
+    def load_data_on_slice_serial2(self, source_location: np.ndarray, station_location: np.ndarray, 
+                                  R_max: float, R_min: float, theta_min: float, theta_max: float, 
+                                  resolution: int, channels: list, time_slices: list, return_slice: bool=False):
+        """
+        Load data on a slice of points within a specified radius range and resolution.
+        Not using multi-processing!
+
+        Args:
+            source_location (list): The source location [depth, latitude, longitude] in degrees.
+            station_location (list): The station location [depth, latitude, longitude] in degrees.
+            R_max (float): The maximum radius for the slice in Earth radii.
+            R_min (float): The minimum radius for the slice in Earth radii.
+            resolution (int): The resolution of the slice (number of points along each dimension).
+            channels (list): The channels of data to load.
+            return_slice (bool, optional): Whether to return additional slice information. 
+                                        Defaults to False.
+
+        Returns:
+            numpy.ndarray or list: An ndarray containing the loaded data on the slice,
+                                and optionally, additional slice information.
+
+        """
+        if return_slice is False:
+            filtered_indices, filtered_slice_points = self._create_slice(source_location=source_location, 
+                                                                         station_location=station_location, 
+                                                                         R_min=R_min, R_max=R_max, 
+                                                                         theta_min=theta_min, 
+                                                                         theta_max=theta_max,
+                                                                         resolution=resolution,
+                                                                         return_slice=return_slice)
+        else:
+            filtered_indices, filtered_slice_points, \
+            point1, point2, base1, base2, \
+            inplane_DIM1, inplane_DIM2 = self._create_slice(source_location=source_location, 
+                                                            station_location=station_location, 
+                                                            R_min=R_min, R_max=R_max, 
+                                                            theta_min=theta_min, 
+                                                            theta_max=theta_max,
+                                                            resolution=resolution,
+                                                            return_slice=return_slice)
+        inplane_field = np.zeros((resolution, resolution, len(channels), len(time_slices)))
+        pbar = tqdm(total=len(filtered_indices))
+        self.load_data(points=filtered_slice_points, frame='geographic', coords='spherical', in_deg=False)
+        for [index1, index2], point in zip(filtered_indices, filtered_slice_points):
+            inplane_field[index1, index2, :, :] = self.load_data(points=point)
+            pbar.update(1)
+        pbar.close()
+
+        if return_slice is False:
+            return inplane_field
+        else:
+            return [inplane_field, point1, point2, 
+                    base1, base2, 
+                    inplane_DIM1, inplane_DIM2]
+    
 
     def load_data_at_point(self, point: list, coord_in_deg: bool = False, 
                         channels: list = None,
@@ -389,7 +476,7 @@ class ElementOutput(AxiSEM3DOutput):
         return result
 
 
-    def animation(self, source_location: list=None, station_location: list=None, channels: list=['U'],
+    def animation(self, source_location: np.ndarray=None, station_location: np.ndarray=None, channels: list=['U'],
                           name: str='video', video_duration: int=20, frame_rate: int=10,
                           resolution: int=100, R_min: float=None, R_max: float=None,
                           theta_min: float=-np.pi, theta_max: float=np.pi,
@@ -420,8 +507,8 @@ class ElementOutput(AxiSEM3DOutput):
             R_max = self.vertical_range[1]
         # Auto points
         if source_location is None and station_location is None:
-            source_location = [self.Earth_Radius - R_max, 0, 0]
-            station_location = [self.Earth_Radius - R_max, 0, 30]
+            source_location = np.array([self.Earth_Radius - R_max, 0, 0])
+            station_location = np.array([self.Earth_Radius - R_max, 0, 30])
         
         # Get time slices from frame rate and video_duration assuming that the
         # video will include the entire time axis 
@@ -441,7 +528,7 @@ class ElementOutput(AxiSEM3DOutput):
         else:
             inplane_field, point1, point2, \
             base1, base2, inplane_DIM1, \
-            inplane_DIM2 = self.load_data_on_slice_serial(source_location=source_location, station_location=station_location, 
+            inplane_DIM2 = self.load_data_on_slice_serial2(source_location=source_location, station_location=station_location, 
                                                             R_max=R_max, R_min=R_min, theta_min=theta_min, theta_max=theta_max,
                                                             resolution=resolution, channels=channels, 
                                                             time_slices=time_slices, return_slice=True)
@@ -591,13 +678,13 @@ class ElementOutput(AxiSEM3DOutput):
         if self.GLL_points_one_edge == [0,2,4]:
             # The of the element are positioned like this (GLL point)
             # The numbers inbetween the points are the sub-element numbers
-            # ^z
+            # ^r
             # | (2)-(5)-(8)
             # |  | 1 | 3 |
             # | (1)-(4)-(7)
             # |  | 0 | 2 |
             # | (0)-(3)-(6)
-            #  ____________>s
+            #  ____________>theta
 
             # find the difference vector between our chosen point
             # and the center GLL point of every element
@@ -950,15 +1037,15 @@ class ElementOutput(AxiSEM3DOutput):
                     inplane_DIM1, inplane_DIM2]
 
 
-    def _create_slice(self, source_location: list, station_location: list, 
+    def _create_slice(self, source_location: np.ndarray, station_location: np.ndarray, 
                       R_min: float, R_max: float, theta_min: float, theta_max: float,
                       resolution: int, return_slice: bool=False):
         """
         Create a mesh for a slice of Earth within a specified radius range and resolution.
 
         Args:
-            source_location (list): The source location [depth, latitude, longitude] in degrees.
-            station_location (list): The station location [depth, latitude, longitude] in degrees.
+            source_location (np.ndarray): The source location [depth, latitude, longitude] in degrees.
+            station_location (np.ndarray): The station location [depth, latitude, longitude] in degrees.
             R_max (float): The maximum radius for the slice in Earth radii.
             R_min (float): The minimum radius for the slice in Earth radii.
             resolution (int): The resolution of the slice (number of points along each dimension).
@@ -1006,9 +1093,9 @@ class ElementOutput(AxiSEM3DOutput):
                     filtered_slice_points.append(cart2sph(point))
                     filtered_indices.append([index1, index2])
         if return_slice is False:
-            return [filtered_indices, filtered_slice_points]
+            return [np.array(filtered_indices), np.array(filtered_slice_points)]
         else:
-            return [filtered_indices, filtered_slice_points,
+            return [np.array(filtered_indices), np.array(filtered_slice_points),
                     point1, point2, base1, base2, 
                     inplane_DIM1, inplane_DIM2]
 
