@@ -110,6 +110,7 @@ class AxiSEM3DOutput:
             for key in unit_dependent_model_properties:
                 data[key] = [element * 1e3 for element in data[key]]
             data['DISCONTINUITIES'] = [element * 1e3 for element in data['DISCONTINUITIES']]
+            data['R'] = data['DISCONTINUITIES']
         else:
             # The bm file is of axisem type
             data = {}

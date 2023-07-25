@@ -240,7 +240,7 @@ class StationOutput(AxiSEM3DOutput):
         current_directory = os.path.abspath(path)
         while True:
             parent_directory = os.path.dirname(current_directory)
-            if os.path.basename(current_directory) == 'output':
+            if 'output' in os.path.basename(current_directory):
                 return parent_directory
             elif current_directory == parent_directory:
                 # Reached the root directory, "output" directory not found

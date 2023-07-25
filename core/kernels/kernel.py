@@ -97,10 +97,16 @@ class L2Kernel():
         # K_lambda^zero = int_T (div u)(div u^t) = int_T (tr E)(tr E^t) = 
         # int_T (EZZ+ERR+ETT)(EZZ^t+ERR^t+ETT^t)
 
+        # We first try to compute the sensitivity using the strain tensor, but
+        # if it is not available, then we will use the gradient of displacement
+        
         # get forwards and backward waveforms at this point
-        forward_waveform = np.nan_to_num(self.forward_data.load_data_at_point(point, channels=['EZZ', 'ERR', 'ETT']))
-        backward_waveform = np.nan_to_num(self.backward_data.load_data_at_point(point, channels=['EZZ', 'ERR', 'ETT']))
-
+        try:
+            forward_waveform = np.nan_to_num(self.forward_data.load_data_at_point(point, channels=['EZZ', 'ERR', 'ETT']))
+            backward_waveform = np.nan_to_num(self.backward_data.load_data_at_point(point, channels=['EZZ', 'ERR', 'ETT']))
+        except:
+            forward_waveform = np.nan_to_num(self.forward_data.load_data_at_point(point, channels=['GZZ', 'GRR', 'GTT']))
+            backward_waveform = np.nan_to_num(self.backward_data.load_data_at_point(point, channels=['GZZ', 'GRR', 'GTT']))
         #compute trace of each wavefield and flip adjoint in time
         trace_E = forward_waveform.sum(axis=0)
         trace_E_adjoint = np.flip(backward_waveform.sum(axis=0))
@@ -123,27 +129,98 @@ class L2Kernel():
         # K_mu_0 = int_T (grad u^t):(grad u) + (grad u^t):(grad u)^T 
         # = int_T 2E^t:E
 
-        # get forwards and backward waveforms at this point
-        E = np.nan_to_num(self.forward_data.load_data_at_point(point, channels=['E']))
-        E_adjoint = np.nan_to_num(self.backward_data.load_data_at_point(point, channels=['E']))
+        # We first try to compute the sensitivity using the strain tensor, but
+        # if it is not available, then we will use the gradient of displacement
 
-        # flip adjoint in time
-        E_adjoint = np.flip(E_adjoint)
-        
-        # Project both arrays on the master time
-        interp_E = []
-        interp_E_adjoint = []
-        for i in range(6):
-            interp_E.append(np.interp(self.master_time, self.fw_time, E[i]))
-            interp_E_adjoint.append(np.interp(self.master_time, self.bw_time, E_adjoint[i]))
-        interp_E = np.array(interp_E)
-        interp_E_adjoint = np.array(interp_E_adjoint)
+        # get forwards and backward waveforms at this point
+        if 'E' in self.forward_data.channels and 'E' in self.backward_data.channels:
+            E = np.nan_to_num(self.forward_data.load_data_at_point(point, channels=['E']))
+            E_adjoint = np.nan_to_num(self.backward_data.load_data_at_point(point, channels=['E']))
             
-        weights = np.array([1, 1, 1, 2, 2, 2])
-        # Multiply 
-        integrand = 2 * np.sum((interp_E_adjoint * interp_E) * weights[:, np.newaxis], axis=1)
+            # flip adjoint in time
+            E_adjoint = np.flip(E_adjoint)
+            
+            # Project both arrays on the master time
+            interp_E = []
+            interp_E_adjoint = []
+            for i in range(6):
+                interp_E.append(np.interp(self.master_time, self.fw_time, E[i]))
+                interp_E_adjoint.append(np.interp(self.master_time, self.bw_time, E_adjoint[i]))
+            interp_E = np.array(interp_E)
+            interp_E_adjoint = np.array(interp_E_adjoint)
+                
+            weights = np.array([1, 1, 1, 2, 2, 2])
+            # Multiply 
+            integrand = 2 * np.sum((interp_E_adjoint * interp_E) * weights[:, np.newaxis], axis=1)
+        elif 'G' in self.forward_data.channels and 'G' in self.backward_data.channels:
+            G = np.nan_to_num(self.forward_data.load_data_at_point(point, channels=['G']))
+            G_adjoint = np.nan_to_num(self.backward_data.load_data_at_point(point, channels=['G']))
+            # flip adjoint in time
+            G_adjoint = np.flip(G_adjoint)
+            
+            # Project both arrays on the master time
+            interp_G = []
+            interp_G_adjoint = []
+            for i in range(9):
+                interp_G.append(np.interp(self.master_time, self.fw_time, G[i]))
+                interp_G_adjoint.append(np.interp(self.master_time, self.bw_time, G_adjoint[i]))
+            interp_G = np.array(interp_G).reshape(3,3,len(self.master_time))
+            interp_G_adjoint = np.array(interp_G_adjoint).reshape(3,3,len(self.master_time))
+
+            # Multiply
+            integrand = np.sum((interp_G_adjoint * interp_G) + (interp_G_adjoint * interp_G.transpose(1,0,2)), axis=(0,1))
 
         return integrate.simpson(integrand, dx = (self.master_time[1] - self.master_time[0]))
+    
+    def evaluate_rho(self, point):
+        # K_rho = K_rho_0 + (vp^2-2vs^2)K_lambda_0 + vs^2 K_mu_0
+        radii = np.array(self.forward_data.base_model['R'])
+        is_increasing = radii[0] < radii[1]
+        if is_increasing:
+            index = np.searchsorted(radii, point[0])
+        else:
+            index = np.searchsorted(-radii, -point[0])
+        if index == 0 or index >= len(radii):
+            print('Point outside of base model domain')
+            return 1
+        else:
+            vp = self.forward_data.base_model['VP'][index - 1]
+            vs = self.forward_data.base_model['VS'][index - 1]
+        return self.evaluate_rho_0(point) + (vp*vp - 2*vs*vs)*self.evaluate_lambda_0(point) + vs*vs*self.evaluate_mu_0(point)
+
+    def evaluate_vs(self, point):
+        # K_vs = 2*rho*vs*(K_mu_0 - 2*K_lambda_0)
+        radii = np.array(self.forward_data.base_model['R'])
+        is_increasing = radii[0] < radii[1]
+        if is_increasing:
+            index = np.searchsorted(radii, point[0])
+        else:
+            index = np.searchsorted(-radii, -point[0])
+        if index == 0 or index >= len(radii):
+            print('Point outside of base model domain')
+            return 1
+        else:
+            rho = self.forward_data.base_model['RHO'][index - 1]
+            vs = self.forward_data.base_model['VS'][index - 1]
+        return 2 * rho * vs * (self.evaluate_mu_0(point) - 2*self.evaluate_mu_0(point))
+    
+    
+    def evaluate_vp(self, point):
+        # K_vs = 2*rho*vp*K_lambda_0
+        radii = np.array(self.forward_data.base_model['R'])
+        is_increasing = radii[0] < radii[1]
+        if is_increasing:
+            index = np.searchsorted(radii, point[0])
+        else:
+            index = np.searchsorted(-radii, -point[0])
+        if index == 0 or index >= len(radii):
+            print('Point outside of base model domain')
+            return 1
+        else:
+            rho = self.forward_data.base_model['RHO'][index - 1]
+            vp = self.forward_data.base_model['VP'][index - 1]
+        return 2 * rho * vp * self.evaluate_lambda_0(point)
+
 
     def evaluate_on_slice(self, source_loc: list, station_loc: list,
                           R_min: float, R_max: float, theta_min: float, theta_max: float, 
@@ -159,7 +236,7 @@ class L2Kernel():
         
         with tqdm(total=len(filtered_slice_points)) as pbar:
             for [index1, index2], point in zip(filtered_indices, filtered_slice_points):
-                inplane_sensitivity[index1, index2] = self.evaluate_rho_0(point)
+                inplane_sensitivity[index1, index2] = self.evaluate_mu_0(point)
                 pbar.update(1)
         
         if log_plot is False:

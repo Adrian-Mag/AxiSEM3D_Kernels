@@ -954,19 +954,24 @@ class ElementOutput(AxiSEM3DOutput):
                       R_min: float, R_max: float, theta_min: float, theta_max: float,
                       resolution: int, return_slice: bool=False):
         """
-        Create a mesh for a slice of Earth within a specified radius range and resolution.
+        Create a mesh for a slice of Earth within a specified radius range and
+        resolution.
 
         Args:
-            source_location (list): The source location [depth, latitude, longitude] in degrees.
-            station_location (list): The station location [depth, latitude, longitude] in degrees.
-            R_max (float): The maximum radius for the slice in Earth radii.
-            R_min (float): The minimum radius for the slice in Earth radii.
-            resolution (int): The resolution of the slice (number of points along each dimension).
-            return_slice (bool, optional): Whether to return additional slice information. 
+            source_location (list): The source location [depth, latitude,
+            longitude] in degrees. station_location (list): The station location
+            [depth, latitude, longitude] in degrees. R_max (float): The maximum
+            radius for the slice in Earth radii. R_min (float): The minimum
+            radius for the slice in Earth radii. resolution (int): The
+            resolution of the slice (number of points along each dimension).
+            return_slice (bool, optional): Whether to return additional slice
+            information. 
                                         Defaults to False.
 
         Returns:
-            list: A list containing filtered indices and slice points, and optionally, additional slice information.
+            list: A list containing filtered indices and slice points in
+            spherical coords geographic frame, and optionally, additional slice
+            information.
 
         """
         # Transform from depth lat lon in deg to rad lat lon in rad
