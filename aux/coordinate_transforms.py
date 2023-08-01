@@ -86,7 +86,7 @@ def sph2cyl(point: list) -> list:
     z = r * np.sin(theta)
 
     return np.array([s, z, phi])
-
+    
 
 def cart_geo2cart_src(points: np.ndarray, rotation_matrix: np.ndarray) -> np.ndarray:
     """
@@ -103,8 +103,8 @@ def cart_geo2cart_src(points: np.ndarray, rotation_matrix: np.ndarray) -> np.nda
     if rotation_matrix.shape != (3, 3):
         raise ValueError("Invalid input: 'rotation_matrix' should be a 3x3 numpy array.")
 
-    rotated_points = np.matmul(points, rotation_matrix.T)
-    return rotated_points
+    rotated_points = np.matmul(rotation_matrix.T, points.T)
+    return rotated_points.T
 
 
 def cart2polar(s: np.ndarray, z: np.ndarray) -> np.ndarray:
