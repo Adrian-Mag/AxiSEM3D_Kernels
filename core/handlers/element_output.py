@@ -16,11 +16,13 @@ from tqdm import tqdm
 import concurrent.futures
 from concurrent.futures import ThreadPoolExecutor
 import time
-
-from mayavi import mlab
+from collections import defaultdict
+import warnings 
 
 from .axisem3d_output import AxiSEM3DOutput
 from ...aux.coordinate_transforms import sph2cart, cart2sph, cart2polar, cart_geo2cart_src, cart2cyl
+
+#warnings.filterwarnings("error")
 
 class ElementOutput(AxiSEM3DOutput):
     def __init__(self, path_to_element_output:str) -> None:
@@ -224,7 +226,7 @@ class ElementOutput(AxiSEM3DOutput):
             stadepth = station['depth']
             starad = self.Earth_Radius - stadepth
             # get the data at this station (assuming RTZ components)
-            wave_data = self.load_data_at_point(point=[starad, stalat, stalon],
+            wave_data = self.load_data_at_point(point=np.array([starad, stalat, stalon]),
                                                 coord_in_deg=True,
                                                 channels=channels, 
                                                 time_slices=time_slices)
@@ -321,36 +323,227 @@ class ElementOutput(AxiSEM3DOutput):
 
         return stream
     
-    def load_data(self, points: np.ndarray, frame: str='geographic', coords: str='spherical', in_deg: bool=True):
-        permutation = np.array(range(len(points)))
-        # If only one point, we will make it an array or array
+    def load_data(self, points: np.ndarray, frame: str='geographic', coords: str='spherical', in_deg: bool=True,
+                  channels: list=None, time_slices: list=None):
+        # only options are geographic+spherical, geographic+cartesian, source+cylindrical
+        # If only one point, we will make it an array of array
+        if self.GLL_points_one_edge == [0,2,4]:
+            lagrange_order = 0
+        else:
+            print('No implementation for this output type')
+
         if len(points) == 3:
             points = points.reshape((1,3))
+        # Make sure the data type of points is floats
+        points = points.astype(np.float64)
+        if channels is None:
+            channels = self.detailed_channels
+        if time_slices is None:
+            time_slices = np.arange(len(self.data_time))
+        channel_slices = self._channel_slices(channels)
+        final_result = np.ones((len(points),len(channels),len(time_slices)))
         
         # Transforms points to cylindrical coords in source frame
         if frame == 'geographic':
             if coords == 'spherical':
                 if in_deg is True:
-                    points[:, 1:] = np.radians(points[:, 1:])
+                    points[:, 1:] = np.deg2rad(points[:, 1:])
                 points = sph2cart(points)
             points = cart2cyl(cart_geo2cart_src(points=points, rotation_matrix=self.rotation_matrix))
+
+        # Some points may have the same s-z coordinates but after
+        # transformations the numerical errors made them different, so we round
+        # the transformed points to n significant figures
+        decimals = 3
         
-        # Find unique points in the inplane domain
-        _, unique_indices, reverse_indices = np.unique(points[:,0:2], axis=0, return_index=True, return_inverse=True)
-        unique_points = points[unique_indices]
-        # Create element map for the points
+        # Find which points are unique in the inplane domain
+        unique_points_dict = {}
+        unique_points = []
+        for name, point in enumerate(points):
+            s, z, _ = np.around(point, decimals=decimals)
+            key = (s, z)
+            if key in unique_points_dict:
+                unique_points_dict[key][name] = point
+            else:
+                unique_points_dict[key] = {name: point}
+                unique_points.append(point)
+        unique_points = np.array(unique_points)
+        
+        # Create element map for the unique points
         element_centers = self.list_element_coords[:, 4, :]  # Assuming the center point is at index 4
-        differences = element_centers[:, np.newaxis] - points[:,0:2]
+        differences = element_centers[:, np.newaxis] - unique_points[:,0:2]
         distances = np.linalg.norm(differences, axis=2)
+        elements_map = np.argmin(distances, axis=0)
 
-        # Find the index of the element with the minimum distance for each input point
-        closest_element_indices = np.argmin(distances, axis=0)
-        # Find the indices where each element of element_indices should be inserted into index_limits
-        file_indices = np.searchsorted(self.elements_index_limits, closest_element_indices, side='right') - 1
+        # Create elements_dict
+        elements_dict = {}
+        elements_list = []
+        for element, unique_point in zip(elements_map, unique_points):
+            key = (np.around(unique_point[0], decimals=decimals), np.around(unique_point[1], decimals=decimals))
+            if element in elements_dict:
+                elements_dict[element][key] = unique_points_dict[key]
+            else:
+                elements_dict[element] = {key: unique_points_dict[key]}
+                elements_list.append(element)
+
+        # Create a file map and a nag map for elements
+        file_element_map = np.searchsorted(self.elements_index_limits, elements_list, side='right') - 1
+        nag_map = []
+        for element in elements_list:
+            nag_map.append(self.list_element_na[element][2])
+        nag_list = list(set(nag_map))
+
+        # Create file dict
+        file_dict = {}
+        file_list = []
+        for file, element, nag in zip(file_element_map, elements_list, nag_map):
+            if file in file_dict:
+                if nag in file_dict[file]:
+                    file_dict[file][nag][element] = elements_dict[element]
+                else:
+                    file_dict[file][nag] = {element: elements_dict[element]}
+            else:
+                file_dict[file] = {nag: {element: elements_dict[element]}}
+                file_list.append(file)
+
+        # Go file by file, nag by nag
+        for file in file_list:
+            for nag in nag_list:
+                elements = list(file_dict[file][nag].keys())
+                elements_in_file_nag = [self.list_element_na[element][3] for element in elements]
+                # Read the data from the file
+                data = self.files[file]['data_wave__NaG=%d' % nag][elements_in_file_nag][:,:,:,channel_slices,time_slices].data
+                # Data expansion for unique inplane points
+                in_element_repetitions = [len(inplane_points) for inplane_points in file_dict[file][nag].values()]
+                if max(in_element_repetitions) == 1:
+                    # This is the case where in each element there is only one
+                    # inplane point where we need to run the inplane
+                    # interpolation
+                    expanded_data = data # no expansion occurs in this case
+                else:
+                    # If there are multiple unique inplane points in some
+                    # elements, we need to expand the data
+                    final_shape = (np.sum(np.array(in_element_repetitions)),) + data.shape[1:]
+                    expanded_data = np.empty(final_shape)
+                    expanded_index = 0
+                    for index, repetitions in enumerate(in_element_repetitions):
+                        if repetitions == 1:
+                            expanded_data[expanded_index] = data[index]
+                            expanded_index += 1
+                        else:
+                            for _ in range(repetitions):
+                                expanded_data[expanded_index] = data[index]
+                                expanded_index += 1
+
+                # Find the inplane coords for each element
+                inplane_coords = []
+                for sub_dict in file_dict[file][nag].values():
+                    for key in sub_dict.keys():
+                        inplane_coords.append(key)
+                
+                # Transform to polar coords
+                s, z = zip(*inplane_coords)
+                s = np.array(s)
+                z = np.array(z)
+                inplane_coords = cart2polar(s, z)
+
+                # Find the r and theta vectors for each element and construct
+                # lagrange interpolation matrix
+                points_of_interest = self.list_element_coords[elements][:,[0,1,2,3,6],:]
+                # Expand points_of_interest just like data
+                final_shape = (np.sum(np.array(in_element_repetitions)),) +  points_of_interest.shape[1:]
+                expanded_points_of_interest = np.empty(final_shape)
+                expanded_index = 0
+                for index, repetitions in enumerate(in_element_repetitions):
+                    if repetitions == 1:
+                        expanded_points_of_interest[expanded_index] = points_of_interest[index]
+                        expanded_index += 1
+                    else:
+                        for _ in range(repetitions):
+                            expanded_points_of_interest[expanded_index] = points_of_interest[index]
+                            expanded_index += 1
+                points_of_interest = expanded_points_of_interest
+                original_shape = points_of_interest.shape
+                points_of_interest = points_of_interest.reshape((points_of_interest.shape[0]*points_of_interest.shape[1], 2))
+                points_of_interest = cart2polar(points_of_interest[:,0], points_of_interest[:,1]).reshape(original_shape)
+                GLL_rads = points_of_interest[:,[0,1,2],[0]]
+                GLL_thetas = points_of_interest[:,[2,3,4],[1]]
+                
+                #rows_with_duplicates_r = np.apply_along_axis(lambda x: len(np.unique(x)) < len(x), 1, GLL_rads)
+                #rows_with_duplicates_t = np.apply_along_axis(lambda x: len(np.unique(x)) < len(x), 1, GLL_thetas)
+                lr = np.array([self._lagrange(inplane_coords[:,0], GLL_rads, i, lagrange_order) for i in range(lagrange_order)]).transpose()
+                ltheta = np.array([self._lagrange(inplane_coords[:,1], GLL_thetas, i, lagrange_order) for i in range(lagrange_order)]).transpose()
+                LIM = np.array([np.outer(ltheta_i, lr_i).flatten() for ltheta_i, lr_i in zip(ltheta, lr)]) # Lagrange interpolation matrix
+
+                inplane_interpolated_data = np.sum(expanded_data * LIM[:,np.newaxis,:,np.newaxis,np.newaxis], axis=2)
+
+                # Add Fourier Coefficients
+                inplane_point_repetitions = []
+                for inplane_points in file_dict[file][nag].values():
+                    for azimuthal_points in inplane_points.values():
+                        inplane_point_repetitions.append(len(azimuthal_points))                        
+                
+                if max(inplane_point_repetitions) == 1:
+                    expanded_interpolated_data = inplane_interpolated_data
+                else:
+                    # expand to point level
+                    final_shape = (np.sum(np.array(inplane_point_repetitions)),) + inplane_interpolated_data.shape[1:]
+                    expanded_interpolated_data = np.empty(final_shape)
+                    expanded_index = 0
+                    for index, repetitions in enumerate(inplane_point_repetitions):
+                        if repetitions == 1:
+                            expanded_interpolated_data[expanded_index] = inplane_interpolated_data[index]
+                            expanded_index += 1
+                        else:
+                            for _ in range(repetitions):
+                                expanded_interpolated_data[expanded_index] = inplane_interpolated_data[index]
+                                expanded_index += 1
+                # Get the phis
+                phi = []
+                name_list = []
+                for sub_dict in file_dict[file][nag].values():
+                    for sub_sub_dict in sub_dict.values():
+                        for key in sub_sub_dict.keys():
+                            name_list.append(key)
+                            phi.append(sub_sub_dict[key][-1])
+                phi = np.array(phi)
+                # Set complex type
+                complex_type = expanded_interpolated_data.dtype if np.iscomplexobj(expanded_interpolated_data) else np.complex128
+                max_fourier_order = nag // 2
+                result = expanded_interpolated_data[:,0,:,:].copy()
+
+                for order in range(1, max_fourier_order + 1):
+                    coeff = np.zeros(result.shape, dtype=complex_type)
+                    # Real part
+                    coeff.real = expanded_interpolated_data[:,order * 2 - 1,:,:]
+                    # Complex part of Fourier coefficients
+                    if order * 2 < nag:  # Check for Nyquist
+                        coeff.imag += expanded_interpolated_data[:,order * 2,:,:]
+                    result += (2.0 * np.exp(1j * order * phi)[:, np.newaxis, np.newaxis] * coeff).real
+
+                # Place the result in the final result ndarray
+                final_result[name_list,:,:] = result
+        return final_result
+
+    def _find_duplicates_indices(self, points):
+        unique_points_dict = {}
+        unique_points = []
+        unique_indices = []
         
-        print('a')
+        for i, point in enumerate(points):
+            s, z, phi = point
+            key = (s, z)
 
+            if key in unique_points_dict:
+                unique_points_dict[key].append(i)
+            else:
+                unique_points_dict[key] = [i]
+                unique_points.append(point)
+                unique_indices.append(i)
 
+        return unique_points_dict, np.array(unique_points), np.array(unique_indices)
+    
+    
     def load_data_on_slice_serial2(self, source_location: np.ndarray, station_location: np.ndarray, 
                                   R_max: float, R_min: float, theta_min: float, theta_max: float, 
                                   resolution: int, channels: list, time_slices: list, return_slice: bool=False):
@@ -393,9 +586,12 @@ class ElementOutput(AxiSEM3DOutput):
                                                             return_slice=return_slice)
         inplane_field = np.zeros((resolution, resolution, len(channels), len(time_slices)))
         pbar = tqdm(total=len(filtered_indices))
-        self.load_data(points=filtered_slice_points, frame='geographic', coords='spherical', in_deg=False)
+        data = self.load_data(points=filtered_slice_points, frame='geographic', coords='spherical', in_deg=False,
+                              channels=channels, time_slices=time_slices)
+        index = 0
         for [index1, index2], point in zip(filtered_indices, filtered_slice_points):
-            inplane_field[index1, index2, :, :] = self.load_data(points=point)
+            inplane_field[index1, index2, :, :] = data[index]
+            index += 1
             pbar.update(1)
         pbar.close()
 
@@ -405,9 +601,9 @@ class ElementOutput(AxiSEM3DOutput):
             return [inplane_field, point1, point2, 
                     base1, base2, 
                     inplane_DIM1, inplane_DIM2]
-    
 
-    def load_data_at_point(self, point: list, coord_in_deg: bool = False, 
+
+    def load_data_at_point(self, point: np.ndarray, coord_in_deg: bool = False, 
                         channels: list = None,
                         time_slices: list = None) -> np.ndarray:
         """
@@ -526,13 +722,15 @@ class ElementOutput(AxiSEM3DOutput):
                                                             resolution=resolution, channels=channels, 
                                                             time_slices=time_slices, return_slice=True, batch_size=batch_size)
         else:
+            start_time = time.time()
             inplane_field, point1, point2, \
             base1, base2, inplane_DIM1, \
             inplane_DIM2 = self.load_data_on_slice_serial2(source_location=source_location, station_location=station_location, 
                                                             R_max=R_max, R_min=R_min, theta_min=theta_min, theta_max=theta_max,
                                                             resolution=resolution, channels=channels, 
                                                             time_slices=time_slices, return_slice=True)
-        
+            end_time = time.time()
+        print(end_time-start_time)
         print('Create animation')
 
         # Create a figure and axis
@@ -714,8 +912,8 @@ class ElementOutput(AxiSEM3DOutput):
             # Now we interpolate using GLLelement_na, file_index, channels, time_limits
             for i in range(3):
                 for j in range(3):
-                    interpolated_data += self._lagrange(r, radial_element_GLL_points[j], radial_element_GLL_points) * \
-                    self._lagrange(theta, theta_element_GLL_points[i], theta_element_GLL_points) * data_wave[:,3*i+j,:,:]
+                    interpolated_data += self._lagrange(r, np.array([radial_element_GLL_points]), j, 3) * \
+                    self._lagrange(theta, np.array([theta_element_GLL_points]), j, 3) * data_wave[:,3*i+j,:,:]
 
         return interpolated_data
 
@@ -831,13 +1029,22 @@ class ElementOutput(AxiSEM3DOutput):
                            [-np.sin(colatitude), 0, np.cos(colatitude)]])
 
 
-    def _lagrange(self, evaluation_point, evaluation_GLL_point, GLL_points):
+    def _lagrange(self, evaluation_points, GLL_points, i, order):
         """ Lagrange function implementation
         """
         value = 1
-        for point in GLL_points:
-            if evaluation_GLL_point != point:
-                value *= (evaluation_point - point) / (evaluation_GLL_point - point)
+        for j in range(order):
+            if i != j:
+                try:
+                    with warnings.catch_warnings(record=True) as w:
+                        value *= (evaluation_points - GLL_points[:,j]) / (GLL_points[:,i] - GLL_points[:,j])
+                    if w:
+                        # A warning occurred, print it along with the traceback
+                        warning = w[-1]
+                        print(f"Warning: {warning.message}")
+                except Exception as e:
+                    # In case of any exception, print the error message
+                    print(f"Error: {str(e)}")
         return value
 
 
