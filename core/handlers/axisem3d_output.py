@@ -74,6 +74,7 @@ class AxiSEM3DOutput:
             else:
                 pass
 
+            
     def read_model_file(self, file_path):
         if 'axisem3d' in os.path.basename(file_path):
             # The bm file is of axisem3d type

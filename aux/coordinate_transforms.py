@@ -1,21 +1,17 @@
 import numpy as np
 
 
-def sph2cart(point: np.ndarray) -> np.ndarray:
+def sph2cart(points: np.ndarray) -> np.ndarray:
     """
-    Convert spherical coordinates to Cartesian coordinates.
-
+    Convert spherical coordinates to Cartesian coordinates for an array of points.
     Args:
-        rad (float): The radius (must be non-negative).
-        lat (float): The latitude in radians.
-        lon (float): The longitude in radians.
-
+        points (np.ndarray): An array of shape (N, 3) containing the spherical coordinates [rad, lat, lon].
     Returns:
-        np.ndarray: An array containing the Cartesian coordinates [x, y, z].
+        np.ndarray: An array containing the Cartesian coordinates [x, y, z] for each input point.
     """
-    rad, lat, lon = point
+    rad, lat, lon = points.T  # Transpose to access each coordinate separately
 
-    if rad < 0:
+    if np.any(rad < 0):
         raise ValueError("Radius must be non-negative.")
 
     cos_lat = np.cos(lat)
@@ -23,7 +19,8 @@ def sph2cart(point: np.ndarray) -> np.ndarray:
     y = rad * cos_lat * np.sin(lon)
     z = rad * np.sin(lat)
 
-    return np.array([x, y, z])
+    cartesian_coords = np.array([x, y, z]).T  # Transpose back to shape (N, 3)
+    return cartesian_coords
 
 
 def cart2sph(point: np.ndarray) -> np.ndarray:
@@ -89,17 +86,25 @@ def sph2cyl(point: list) -> list:
     z = r * np.sin(theta)
 
     return np.array([s, z, phi])
+    
 
-
-def cart_geo2cart_src(point: np.ndarray, rotation_matrix: np.ndarray) -> np.ndarray:
-    # Rotate coordinates from the Earth frame to the source frame
-    if len(point) != 3:
-        raise ValueError("Invalid input: 'point' list should contain 3 elements.")
+def cart_geo2cart_src(points: np.ndarray, rotation_matrix: np.ndarray) -> np.ndarray:
+    """
+    Rotate coordinates from the Earth frame to the source frame for an array of points.
+    Args:
+        points (np.ndarray): An array of shape (N, 3) containing the Cartesian coordinates [x, y, z] in the Earth frame.
+        rotation_matrix (np.ndarray): A 3x3 numpy array representing the rotation matrix.
+    Returns:
+        np.ndarray: An array containing the rotated Cartesian coordinates [x', y', z'] for each input point.
+    """
+    if points.shape[-1] != 3:
+        raise ValueError("Invalid input: 'points' array should have shape (N, 3).")
 
     if rotation_matrix.shape != (3, 3):
         raise ValueError("Invalid input: 'rotation_matrix' should be a 3x3 numpy array.")
 
-    return np.matmul(rotation_matrix.transpose(), point)
+    rotated_points = np.matmul(rotation_matrix.T, points.T)
+    return rotated_points.T
 
 
 def cart2polar(s: np.ndarray, z: np.ndarray) -> np.ndarray:
@@ -127,7 +132,7 @@ def cart2polar(s: np.ndarray, z: np.ndarray) -> np.ndarray:
     return np.column_stack((r, theta))
 
 
-def cart2cyl(point: np.ndarray) -> np.ndarray:
+def cart2cyl(points: np.ndarray) -> np.ndarray:
     """
     Convert Cartesian coordinates to cylindrical coordinates.
 
@@ -147,9 +152,9 @@ def cart2cyl(point: np.ndarray) -> np.ndarray:
         None.
 
     """
-    x, y, z = point
+    x, y, z = points.T
 
     s = np.sqrt(x*x + y*y)
     phi = np.arctan2(y, x)
 
-    return np.array([s, z, phi])
+    return np.array([s, z, phi]).T
