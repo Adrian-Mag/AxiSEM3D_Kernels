@@ -137,6 +137,11 @@ class AxiSEM3DOutput:
                         for index, key in enumerate(data['COLUMNS']):
                             data['DATA'][key].append(float(line.split()[index]))
                 i += 1
+            data['DISCONTINUITIES'] = [data['DATA']['radius'][0]]
+            for i in range(len(data['DATA']['radius']) - 1):
+                if data['DATA']['radius'][i] == data['DATA']['radius'][i+1]:
+                    data['DISCONTINUITIES'].append(data['DATA']['radius'][i])
+            data['DISCONTINUITIES'].append(data['DATA']['radius'][-1])
         return data
 
 
