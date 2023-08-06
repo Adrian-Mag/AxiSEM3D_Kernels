@@ -760,75 +760,6 @@ class ElementOutput(AxiSEM3DOutput):
                     inplane_DIM1, inplane_DIM2]
 
 
-    def load_data_at_point(self, point: np.ndarray, coord_in_deg: bool = False, 
-                        channels: list = None,
-                        time_slices: list = None) -> np.ndarray:
-        """
-        Expand an in-plane point into the longitudinal direction using the Fourier expansion.
-
-        Args:
-            point (list): A list representing the point in geographical frame.
-                        It should contain the following elements:
-                        - radial position in meters (float)
-                        - latitude in degrees/radians (float)
-                        - longitude in degrees/radians (float)
-            coord_in_deg (bool, optional): Specify whether the coordinates are in degrees.
-                                        Defaults to True.
-            channels (list, optional): List of channels to include.
-                                    Defaults to None, which includes all channels.
-            time_slices (list, optional): Points on the time axis where data should be loaded
-                                        Defaults to None, which includes all times.
-            fourier_order (int, optional): Maximum Fourier order.
-                                        Defaults to None.
-
-        Returns:
-            np.ndarray: The result of the Fourier expansion, represented as a NumPy array.
-        """
-
-        # Make sure the degrees are turned to radians
-        if coord_in_deg:
-            point[1] = np.deg2rad(point[1])
-            point[2] = np.deg2rad(point[2])
-
-        # Check if the point provided is in the output domain
-        if self._point_not_in_output_domain(point):
-            print('A point that is not in the output domain has been found: ', point)
-
-        # Transform the geographical frame spherical coord into the source frame cylindrical coords
-        _, _, phi = cart2cyl(cart_geo2cart_src(sph2cart(point), rotation_matrix=self.rotation_matrix))
-
-        # Get channel slices from channels
-        channel_slices = self._channel_slices(channels=channels)
-
-        # Interpolate the data in-plane
-        interpolated_data = self._inplane_interpolation(point=point, channel_slices=channel_slices, 
-                                                        time_slices=time_slices)
-
-        # Set complex type
-        complex_type = interpolated_data.dtype if np.iscomplexobj(interpolated_data) else np.complex128
-
-        # Find max Fourier order
-        max_fourier_order = len(interpolated_data[:, 0, 0]) // 2
-
-        # Initialize result with 0th order
-        result = interpolated_data[0].copy()
-
-        # Add higher orders
-        for order in range(1, max_fourier_order + 1):
-            coeff = np.zeros(result.shape, dtype=complex_type)
-            # Real part
-            coeff.real = interpolated_data[order * 2 - 1]
-            # Complex part of Fourier coefficients
-            if order * 2 < len(interpolated_data):  # Check for Nyquist
-                coeff.imag += interpolated_data[order * 2]
-            result += (2.0 * np.exp(1j * order * phi) * coeff).real
-
-        if np.max(np.abs(result)) > 1:
-            print(point) 
-
-        return result
-
-
     def animation(self, source_location: np.ndarray=None, station_location: np.ndarray=None, channels: list=['U'],
                           name: str='video', video_duration: int=20, frame_rate: int=10,
                           resolution: int=100, domains: list=None,
@@ -999,79 +930,6 @@ class ElementOutput(AxiSEM3DOutput):
             return True
         else:
             return False
- 
-
-    def _inplane_interpolation(self, point: list, channel_slices: list = None, 
-                              time_slices: list = None)-> np.ndarray:
-        """Takes in a point in spherical coordinates in the real earth frame
-        and outputs the displacement data in time for all the available channels
-        in the form of a NumPy array.
-
-        Args:
-            point (list): A list representing the point in spherical coordinates in geographical frame.
-                        It should contain the following elements:
-                        - radial position in meters (float)
-                        - latitude in radians (float)
-                        - longitude in radians (float)
-            channels (list, optional): List of channels to include. Defaults to None, which includes all channels.
-            time_limits (list, optional): Time limits for the data. It should be a list with two elements:
-                                        - start time in seconds (float)
-                                        - end time in seconds (float)
-                                        Defaults to None, which includes all times.
-
-        Returns:
-            np.ndarray: The interpolated displacement data in time for all available channels,
-                        represented as a NumPy array.
-        """      
-
-        # Transform geographical to cylindrical coords in source frame
-        s, z, _ = cart2cyl(cart_geo2cart_src(sph2cart(point), rotation_matrix=self.rotation_matrix))
-        # spherical coordinates will be used for the GLL interpolation
-        [r, theta] = cart2polar(s,z)[0]
-
-        if self.GLL_points_one_edge == [0,2,4]:
-            # The of the element are positioned like this (GLL point)
-            # The numbers inbetween the points are the sub-element numbers
-            # ^r
-            # | (2)-(5)-(8)
-            # |  | 1 | 3 |
-            # | (1)-(4)-(7)
-            # |  | 0 | 2 |
-            # | (0)-(3)-(6)
-            #  ____________>theta
-
-            # find the difference vector between our chosen point
-            # and the center GLL point of every element
-            difference_vectors = self.list_element_coords[:,4,0:2] - [s, z]
-            
-            # find the index of the central GLL point that is closest to our point 
-            element_index = np.argmin((difference_vectors*difference_vectors).sum(axis=1))
-            
-            # grab the information about the element whose center we just found
-            element_na = self.list_element_na[element_index]
-            for i in range(len(self.elements_index_limits) - 1):
-                if self.elements_index_limits[i] <= element_index < self.elements_index_limits[i+1]:
-                    file_index = i
-                    break
-            # get the element points
-            element_points = self.list_element_coords[element_index]
-            radial_element_GLL_points = cart2polar(element_points[[0,1,2]][:,0], 
-                                                    element_points[[0,1,2]][:,1])[:,0]
-            theta_element_GLL_points = cart2polar(element_points[[0,3,6]][:,0], 
-                                                    element_points[[0,3,6]][:,1])[:,1]
-
-            # Now we get the data
-            data_wave = self._read_element_data(element_na=element_na, file_index=file_index,
-                                                channel_slices=channel_slices, time_slices=time_slices)
-            # finally we interpolate at our point
-            interpolated_data = np.zeros(data_wave[:,0,:,:].shape)
-            # Now we interpolate using GLLelement_na, file_index, channels, time_limits
-            for i in range(3):
-                for j in range(3):
-                    interpolated_data += self._lagrange(r, np.array([radial_element_GLL_points]), j, 3) * \
-                    self._lagrange(theta, np.array([theta_element_GLL_points]), j, 3) * data_wave[:,3*i+j,:,:]
-
-        return interpolated_data
 
 
     def _read_element_metadata(self, element_group_name: str):
@@ -1203,47 +1061,6 @@ class ElementOutput(AxiSEM3DOutput):
                     # In case of any exception, print the error message
                     print(f"Error: {str(e)}")
         return value
-
-
-    def _read_element_data(self, element_na, file_index: int, 
-                           channel_slices: list=None, time_slices: list=None):
-        """Reads the element data from the specified file and returns the wave data.
-
-        Args:
-            element_na (tuple): Element information containing:
-                - Element tag in the mesh
-                - Actual "Nr"
-                - Stored "Nr" (in case you didn't want to store all the Nrs)
-                - Element index in the data (local)
-                - Element index in the data (global)
-            file_index (int): Index of the file containing the element data.
-            channels (list, optional): List of channels to include. Defaults to None.
-            time_limits (list, optional): List of time limits [t_min, t_max]. Defaults to None.
-
-        Returns:
-            np.ndarray: The wave data.
-
-        Raises:
-            Exception: If the specified channels or time limits are not available.
-
-        Note:
-            - If `channels` and `time_limits` are both None, the entire wave data is returned.
-            - If only `time_limits` is provided, the wave data is filtered by the specified time range.
-            - If only `channels` are provided, the wave data is filtered by the specified channels.
-            - If both `channels` and `time_limits` are provided, the wave data is filtered by both.
-
-        Note that the wave data is assumed to be stored in the `files` attribute, which is a list of opened netCDF files.
-        """
-        if channel_slices is None and time_slices is None:
-            wave_data = self.files[file_index]['data_wave__NaG=%d' % element_na[2]][element_na[3]].values
-        elif channel_slices is not None and time_slices is None:
-            wave_data = self.files[file_index]['data_wave__NaG=%d' % element_na[2]][element_na[3]][:, :, channel_slices, :].values
-        elif channel_slices is None and time_slices is not None:
-            wave_data = self.files[file_index]['data_wave__NaG=%d' % element_na[2]][element_na[3]][:, :, :, time_slices].values
-        elif channel_slices is not None and time_slices is not None:
-            wave_data = self.files[file_index]['data_wave__NaG=%d' % element_na[2]][element_na[3]][:, :, channel_slices, time_slices].values
-        
-        return wave_data
 
 
     def _create_slice(self, source_location: np.ndarray, station_location: np.ndarray, 
