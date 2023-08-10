@@ -5,25 +5,34 @@ import sys
 
 
 class ObspyfiedOutput:
-    def __init__(self, obspyfied_path:str = None, mseed_file_path:str = None):
-        mseed_file_path, cat_file_path, inv_file_path = self._find_obspyfied_files(obspyfied_path, mseed_file_path)
-        self.stream = read(mseed_file_path)
-        self.cat = read_events(cat_file_path)
-        self.inv = read_inventory(inv_file_path)
+    def __init__(self, obspyfied_path:str = None, mseed_file_path:str = None, 
+                 inv_file_path:str = None, cat_file_path:str = None):
+        # One may give a path to the obspyfied folder, in which case the mseed,
+        # inv, and cat files will be searched for automatically, or one can
+        # provide the path to each file individually
+        if obspyfied_path is not None:
+            mseed_file_path, cat_file_path, inv_file_path = self._find_obspyfied_files(obspyfied_path)
+            self.stream = read(mseed_file_path)
+            self.cat = read_events(cat_file_path)
+            self.inv = read_inventory(inv_file_path)
+        elif mseed_file_path is not None and inv_file_path is not None and cat_file_path is not None:
+            self.stream = read(mseed_file_path)
+            self.cat = read_events(cat_file_path)
+            self.inv = read_inventory(inv_file_path)
+        else:
+            raise ValueError('Must provide either the path to the obspyfied folder, \
+                             or the mseed file, inv file and cat file manually')
 
         self.mseed_file_name = mseed_file_path.split('/')[-1]
         self.inv_file_name = inv_file_path.split('/')[-1]
 
-    def _find_obspyfied_files(self, obspyfied_path:str = None, mseed_file_path:str = None) -> list:
-        if obspyfied_path is not None and mseed_file_path is None:
-            mseed_file_path = self._find_mseed_files(obspyfied_path)
-            cat_file_path = self._find_cat_files(obspyfied_path)
-            inv_file_path = self._find_inv_files(obspyfied_path)
-        elif obspyfied_path is None and mseed_file_path is not None:
-            obspyfied_path = os.path.dirname(mseed_file_path)
-            cat_file_path = self._find_cat_files(obspyfied_path)
-            inv_file_path = self._find_inv_files(obspyfied_path)
+
+    def _find_obspyfied_files(self, obspyfied_path:str = None) -> list:
+        mseed_file_path = self._find_mseed_files(obspyfied_path)
+        cat_file_path = self._find_cat_files(obspyfied_path)
+        inv_file_path = self._find_inv_files(obspyfied_path)
         return [mseed_file_path, cat_file_path, inv_file_path]
+
 
     def _find_inv_files(self, obspyfied_path):
         inv_files = self.search_files(obspyfied_path, 'inv.xml')
@@ -36,6 +45,7 @@ class ObspyfiedOutput:
         else:
             inv_file_path = inv_files[0]
         return inv_file_path
+
 
     def _find_cat_files(self, obspyfied_path):
         cat_files = self.search_files(obspyfied_path, 'cat.xml')

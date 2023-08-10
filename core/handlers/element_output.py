@@ -23,6 +23,7 @@ import sys
 
 from .axisem3d_output import AxiSEM3DOutput
 from ...aux.coordinate_transforms import sph2cart, cart2sph, cart2polar, cart_geo2cart_src, cart2cyl
+from ...aux.mesher import Mesh, SliceMesh
 
 #warnings.filterwarnings("error")
 
@@ -289,7 +290,7 @@ class ElementOutput(AxiSEM3DOutput):
         return stream
 
 
-    def stream(self, point: list, coord_in_deg: bool = True, 
+    def stream(self, points: np.ndarray, coord_in_deg: bool = True, 
                channels: list = None,
                time_limits: list = None) -> obspy.Stream:
         """
@@ -314,46 +315,52 @@ class ElementOutput(AxiSEM3DOutput):
 
         Returns:
             obspy.Stream: A stream containing the wavefields computed at all stations.
-        """      
-        # Get time slices from time limits
+        """ 
+
+        # Get time slices from time limits. We assume that all points have the same time axis!!!!
+        first_key = next(iter(self.element_groups_info))
+        data_time = self.element_groups_info[first_key]['metadata']['data_time']
         if time_limits is not None:
-            time_slices = np.where((self.data_time >= time_limits[0]) & (self.data_time <= time_limits[1]))
+            time_slices = np.where((data_time >= time_limits[0]) & (data_time <= time_limits[1]))
         else:
             time_slices = None
+        group = next(iter(self.element_groups_info))
 
-        if coord_in_deg:
-            point[1] = np.deg2rad(point[1])
-            point[2] = np.deg2rad(point[2])
+        points = np.array(points)
+        if points.ndim == 1:
+            # In case we receive a point as a vector ... 
+            points = points.reshape((1,3))
 
         # initiate stream that will hold data 
         stream = obspy.Stream()
         # get the data at this station (assuming RTZ components)
-        wave_data = self.load_data_at_point(point=point,
-                                            channels=channels, 
-                                            time_slices=time_slices, 
-                                            coord_in_deg=False)
-        # Construct metadata 
-        delta = self.data_time[1] - self.data_time[0]
-        npts = len(self.data_time)
-        network = str(np.random.randint(0, 100))
-        station_name = str(np.random.randint(0, 100))
+        wave_data = self.load_data(points=points,
+                                    channels=channels, 
+                                    time_slices=time_slices, 
+                                    in_deg=coord_in_deg)
+        for point_index, point in enumerate(points):
+            # Construct metadata 
+            delta = data_time[1] - data_time[0]
+            npts = len(data_time)
+            network = str(np.random.randint(0, 100))
+            station_name = str(np.random.randint(0, 100))
 
-        if channels is not None:
-                selected_detailed_channels = [element for element in self.detailed_channels \
-                                            if any(element.startswith(prefix) for prefix in channels)]
-        else:
-            selected_detailed_channels = self.detailed_channels
-        for chn_index, chn in enumerate(selected_detailed_channels):
-            # form the traces at the channel level
-            trace = obspy.Trace(wave_data[chn_index])
-            trace.stats.delta = delta
-            trace.stats.ntps = npts
-            trace.stats.network = network
-            trace.stats.station = station_name
-            trace.stats.location = ''
-            trace.stats.channel = chn
-            trace.stats.starttime = obspy.UTCDateTime("1970-01-01T00:00:00.0Z") + self.data_time[0]
-            stream.append(trace)
+            if channels is not None:
+                    selected_detailed_channels = [element for element in self.element_groups_info[group]['metadata']['detailed_channels'] \
+                                                if any(element.startswith(prefix) for prefix in channels)]
+            else:
+                selected_detailed_channels = self.element_groups_info[group]['metadata']['detailed_channels']
+            for chn_index, chn in enumerate(selected_detailed_channels):
+                # form the traces at the channel level
+                trace = obspy.Trace(wave_data[point_index][chn_index])
+                trace.stats.delta = delta
+                trace.stats.ntps = npts
+                trace.stats.network = network
+                trace.stats.station = station_name
+                trace.stats.location = ''
+                trace.stats.channel = chn
+                trace.stats.starttime = obspy.UTCDateTime("1970-01-01T00:00:00.0Z") + data_time[0]
+                stream.append(trace)
 
         return stream
 
@@ -364,13 +371,24 @@ class ElementOutput(AxiSEM3DOutput):
         # Only options for coords are geographic+spherical,
         # geographic+cartesian, source+cylindrical.
 
-        # If only one point, we will make it an array of array
-        if len(points) == 3:
+        # If we receive only one point as ndarray([a,b,c]) we turn it into
+        # ndarray([[a,b,c]])
+        if points.ndim == 1:
             points = points.reshape((1,3))
         
-        # Initialize the ndarray that will hold the final result
-        final_result = np.zeros((len(points),len(channels),len(time_slices)))
-
+        # Create channel slices and time slices if not given. Since all groups
+        # are assumed to have the same time axis and to contain the necessary
+        # channels, we will use here the first group
+        group = next(iter(self.element_groups_info))
+        if channels is None:
+            channels = self.element_groups_info[group]['metadata']['detailed_channels']
+        if time_slices is None:
+            time_slices = np.arange(len(self.element_groups_info[next(iter(self.element_groups_info))]['metadata']['data_time']))
+        channel_slices = self._channel_slices(channels, group)
+        
+        # Initialize the final result
+        final_result = np.ones((len(points),len(channel_slices),len(time_slices)))
+            
         # Make sure the data type of points is floats
         points = points.astype(np.float64)
 
@@ -384,22 +402,15 @@ class ElementOutput(AxiSEM3DOutput):
                                                 rotation_matrix=self.rotation_matrix))
             logging.info("Transformed points to cylindrical coordinates in source frame.")
 
-        # Separate unique inplane ponits by element group 
+        # Compute the inplane coordinates
 
         # We add pi/2 beacause by default cart2polar sets theta to zero along
         # the s axis, but in the inparam.output theta is set to 0 at the z axis
         inplane_points = cart2polar(points[:,0], points[:,1])
         inplane_points[:,1] += np.pi/2
 
-        # Find all the domains available in the outputs
-        domains = []
-        for element_group in self.element_groups_info.values():
-            r_min, r_max = element_group['elements']['vertical_range']
-            theta_min, theta_max = element_group['elements']['horizontal_range']
-            domains.append([r_min, r_max, theta_min, theta_max])
-
-        # Separate points by the element group they are part of
-        group_mapping = self._separate_by_inplane_domain(inplane_points, domains)    
+        # Separate inplane points by the element group they are part of
+        group_mapping = self._separate_by_inplane_domain(inplane_points)    
 
         # Interpolate all groups
         for group_index, element_group in enumerate(self.element_groups_info):
@@ -407,12 +418,12 @@ class ElementOutput(AxiSEM3DOutput):
             group_points = points[point_index]
             if len(group_points) != 0:
                 final_result[point_index,:,:] = self.load_data_from_element_group(group_points, element_group,
-                                                                                channels, time_slices)
-        
+                                                                                channel_slices, time_slices)
+
         return final_result
 
 
-    def _separate_by_inplane_domain(self, inplane_points: np.ndarray, domains: list) -> np.ndarray:
+    def _separate_by_inplane_domain(self, inplane_points: np.ndarray, domains: list=None) -> np.ndarray:
         """
         Assigns each point in the given ndarray to one of the specified domains based on their polar coordinates.
 
@@ -424,6 +435,15 @@ class ElementOutput(AxiSEM3DOutput):
             numpy.ndarray: An array containing the assigned domain index for each point.
                         If a point does not fall within any domain, it is assigned the value -1.
         """
+        if domains == None:
+            # Then we use as domains the domains defined by the element groups:
+            # Find all the domains available in the outputs
+            domains = []
+            for element_group in self.element_groups_info.values():
+                r_min, r_max = element_group['elements']['vertical_range']
+                theta_min, theta_max = element_group['elements']['horizontal_range']
+                domains.append([r_min, r_max, theta_min, theta_max])
+
         # Initialize array to store assigned domains
         group_mapping = np.zeros(inplane_points.shape[0], dtype=int)  
         
@@ -444,9 +464,12 @@ class ElementOutput(AxiSEM3DOutput):
     
 
     def load_data_from_element_group(self, points: np.ndarray, group: str,
-                                    channels: list=None, time_slices: list=None):
+                                    channel_slices: list=None, time_slices: list=None):
         # All points must be from the same element group!!!
-        
+
+        # Initialize the final result
+        final_result = np.ones((len(points),len(channel_slices),len(time_slices)))
+
         # Get lagrange order
         if self.element_groups_info[group]['inplane']['GLL_points_one_edge'] == [0,2,4] and \
             self.element_groups_info[group]['inplane']['edge_dimension'] == 'BOTH':
@@ -455,14 +478,6 @@ class ElementOutput(AxiSEM3DOutput):
         else:
             logging.error("No implementation for this output type.")
             raise NotImplementedError("No implementation for this output type.")
-
-        # Create channel and time slices
-        if channels is None:
-            channels = self.element_groups_info[group]['metadata']['detailed_channels']
-        if time_slices is None:
-            time_slices = np.arange(len(self.data_time))
-        channel_slices = self._channel_slices(channels, group)
-        final_result = np.ones((len(points),len(channels),len(time_slices)))
 
         # Find which points are unique in the inplane domain
         unique_points_dict = {}
@@ -707,11 +722,9 @@ class ElementOutput(AxiSEM3DOutput):
         return final_result
     
     
-    def load_data_on_slice(self, source_location: np.ndarray, station_location: np.ndarray, 
-                            domains: list, resolution: int, channels: list, 
-                            time_slices: list, return_slice: bool=False):
+    def load_data_on_mesh(self, mesh:Mesh, channels: list, time_slices: list):
         """
-        Load data on a slice of points within a specified radius range and resolution.
+        Load data on a mesh.
         Not using multi-processing!
 
         Args:
@@ -728,49 +741,29 @@ class ElementOutput(AxiSEM3DOutput):
             numpy.ndarray or list: An ndarray containing the loaded data on the slice,
                                 and optionally, additional slice information.
 
-        """
-        if return_slice is False:
-            filtered_indices, filtered_slice_points = self._create_slice(source_location=source_location, 
-                                                                         station_location=station_location, 
-                                                                         domains=domains,
-                                                                         resolution=resolution,
-                                                                         return_slice=return_slice)
-        else:
-            filtered_indices, filtered_slice_points, \
-            point1, point2, base1, base2, \
-            inplane_DIM1, inplane_DIM2 = self._create_slice(source_location=source_location, 
-                                                            station_location=station_location, 
-                                                            domains=domains,
-                                                            resolution=resolution,
-                                                            return_slice=return_slice)
-
-        inplane_field = np.zeros((resolution, resolution, len(channels), len(time_slices)))
-        data = self.load_data(points=filtered_slice_points, frame='geographic', coords='spherical', in_deg=False,
+        """                                                                    
+        inplane_field = np.full((mesh.resolution, mesh.resolution, len(channels), len(time_slices)), np.NaN)
+        data = self.load_data(points=mesh.points, frame='geographic', coords='spherical', in_deg=False,
                               channels=channels, time_slices=time_slices)
         index = 0
-        for [index1, index2], point in zip(filtered_indices, filtered_slice_points):
+        for [index1, index2], _ in zip(mesh.indices, mesh.points):
             inplane_field[index1, index2, :, :] = data[index]
             index += 1
 
-        if return_slice is False:
-            return inplane_field
-        else:
-            return [inplane_field, point1, point2, 
-                    base1, base2, 
-                    inplane_DIM1, inplane_DIM2]
+        return inplane_field
 
 
     def animation(self, source_location: np.ndarray=None, station_location: np.ndarray=None, channels: list=['U'],
                           name: str='video', video_duration: int=20, frame_rate: int=10,
                           resolution: int=100, domains: list=None,
                           lower_range: float=0.6, upper_range: float=0.9999,
-                          paralel_processing: bool=True, batch_size: int=1000):
+                          paralel_processing: bool=False, mesh_type: str='slice'):
         """
         Generate an animation representing seismic data on a slice frame.
 
         Args:
-            source_location (list): The coordinates [depth, lat, lon] of the seismic source in the Earth frame.
-            station_location (list): The coordinates [depth, lat, lon] of the station location in the Earth frame.
+            source_location (list): The coordinates [rad, lat, lon] of the seismic source in the Earth frame in radians.
+            station_location (list): The coordinates [rad, lat, lon] of the station location in the Earth frame in radians.
             name (str, optional): The name of the output video file. Defaults to 'video'.
             video_duration (int, optional): The duration of the video in seconds. Defaults to 20.
             frame_rate (int, optional): The number of frames per second in the video. Defaults to 10.
@@ -782,17 +775,16 @@ class ElementOutput(AxiSEM3DOutput):
         Returns:
             None
         """
-        # Fill in the args with default to None
+        # Create default domains if None were given
         if domains is None:
             domains = []
             for element_group in self.element_groups_info.values():
                 domains.append(element_group['elements']['vertical_range'] + [-2*np.pi, 2*np.pi])
         domains = np.array(domains)
 
-        R_min = np.min(domains[:,[0,1]])
-        R_max = np.max(domains[:,[0,1]])
-    
-        # Auto points
+        # Create source and station if none were given
+        R_max = np.max(domains[:,1])
+        R_min = np.min(domains[:,0])
         if source_location is None and station_location is None:
             source_location = np.array([self.Earth_Radius - R_max, 0, 0])
             station_location = np.array([self.Earth_Radius - R_max, 0, 30])
@@ -812,18 +804,13 @@ class ElementOutput(AxiSEM3DOutput):
         no_frames = frame_rate*video_duration
         time_slices = np.round(np.linspace(0, len(data_time) - 1, no_frames)).astype(int)
 
+        # Load the data
         logging.info('Loading data')
-        if paralel_processing is True:
-            pass
-        else:
-            inplane_field, point1, point2, \
-            base1, base2, inplane_DIM1, \
-            inplane_DIM2 = self.load_data_on_slice(source_location=source_location, 
-                                                   station_location=station_location, 
-                                                   domains=domains, 
-                                                   resolution=resolution, channels=channels, 
-                                                   time_slices=time_slices, return_slice=True)
+        if mesh_type == 'slice':
+            mesh = SliceMesh(source_location, station_location, domains, resolution)
+        inplane_field = self.load_data_on_mesh(mesh, channels, time_slices)
 
+        # Create animation
         logging.info('Create animation')
         # Create a figure and axis
         num_subplots = len(channels)
@@ -854,21 +841,20 @@ class ElementOutput(AxiSEM3DOutput):
         processed_values = np.log10(np.abs(inplane_field))
         processed_values[np.isneginf(processed_values)] = min(cbar_min) - 1
         # Replace values outside the circle with NaN
-        distance_from_center = np.sqrt(inplane_DIM1**2 + inplane_DIM2**2)
-        processed_values[distance_from_center > R_max] = np.nan
-        processed_values[distance_from_center < R_min] = np.nan
+        distance_from_center = np.sqrt(mesh.inplane_DIM1**2 + mesh.inplane_DIM2**2)
+
 
         # Find out which discontinuities (from base model) appear in the animation
         discontinuities_to_plot = [discontinuity for discontinuity in self.base_model['DISCONTINUITIES'] if R_min <= discontinuity <= R_max]
         for channel_slice, ax in enumerate(np.ravel(axes)):
             if channel_slice < len(channels):
                 ax.set_aspect('equal')
-                contour = ax.contourf(inplane_DIM1, inplane_DIM2, 
+                contour = ax.contourf(mesh.inplane_DIM1, mesh.inplane_DIM2, 
                                     processed_values[:, :, channel_slice, 0], 
                                     levels=np.linspace(cbar_min[channel_slice], cbar_max[channel_slice], 100), 
                                     cmap='RdBu_r', extend='both')
-                ax.scatter(np.dot(point1, base1), np.dot(point1, base2))
-                ax.scatter(np.dot(point2, base1), np.dot(point2, base2))
+                ax.scatter(np.dot(mesh.point1, mesh.base1), np.dot(mesh.point1, mesh.base2))
+                ax.scatter(np.dot(mesh.point2, mesh.base1), np.dot(mesh.point2, mesh.base2))
                 ax.set_title(f'Subplot {channels[channel_slice]}')
 
                 # Create a colorbar for each subplot
@@ -890,12 +876,12 @@ class ElementOutput(AxiSEM3DOutput):
                     outside_circle = plt.Circle((0, 0), R_max, color='white', fill=True)
                     ax.add_artist(outside_circle)
                     
-                    contour = ax.contourf(inplane_DIM1, inplane_DIM2, 
+                    contour = ax.contourf(mesh.inplane_DIM1, mesh.inplane_DIM2, 
                                         processed_values[:, :, channel_slice, frame], 
                                         levels=np.linspace(cbar_min[channel_slice], cbar_max[channel_slice], 100), 
                                         cmap='RdBu_r', extend='both')
-                    ax.scatter(np.dot(point1, base1), np.dot(point1, base2))
-                    ax.scatter(np.dot(point2, base1), np.dot(point2, base2))
+                    ax.scatter(np.dot(mesh.point1, mesh.base1), np.dot(mesh.point1, mesh.base2))
+                    ax.scatter(np.dot(mesh.point2, mesh.base1), np.dot(mesh.point2, mesh.base2))
                     ax.set_title(f'Subplot {channels[channel_slice]}')
                     
                     # Add a circle with radius R to the plot
@@ -1061,82 +1047,6 @@ class ElementOutput(AxiSEM3DOutput):
                     # In case of any exception, print the error message
                     print(f"Error: {str(e)}")
         return value
-
-
-    def _create_slice(self, source_location: np.ndarray, station_location: np.ndarray, 
-                     domains: list, resolution: int, return_slice: bool=False):
-        """
-        Create a mesh for a slice of Earth within a specified radius range and
-        resolution.
-
-        Args:
-            source_location (np.ndarray): The source location [depth, latitude, longitude] in degrees.
-            station_location (np.ndarray): The station location [depth, latitude, longitude] in degrees.
-            R_max (float): The maximum radius for the slice in Earth radii.
-            R_min (float): The minimum radius for the slice in Earth radii.
-            resolution (int): The resolution of the slice (number of points along each dimension).
-            return_slice (bool, optional): Whether to return additional slice information. 
-                                        Defaults to False.
-
-        Returns:
-            list: A list containing filtered indices and slice points, and optionally, 
-            additional slice information.
-
-        """
-        # Transform from depth lat lon in deg to rad lat lon in rad
-        source_location[0] = self.Earth_Radius - source_location[0]
-        source_location[1] = np.deg2rad(source_location[1])
-        source_location[2] = np.deg2rad(source_location[2])
-        station_location[0] = self.Earth_Radius - station_location[0]
-        station_location[1] = np.deg2rad(station_location[1])
-        station_location[2] = np.deg2rad(station_location[2])
-
-        # Form vectors for the two points (Earth frame)
-        point1 = sph2cart(source_location)
-        point2 = sph2cart(station_location)
-
-        # Do Gram-Schmidt orthogonalization to form slice basis (Earth frame)
-        base1 = point1 / np.linalg.norm(point1)
-        base2 = point2 - np.dot(point2, base1) * base1
-        base2 /= np.linalg.norm(base2)
-
-        # Generate index mesh
-        indices_dim1 = np.arange(resolution)
-        indices_dim2 = np.arange(resolution)
-
-        # Generate in-plane mesh
-        inplane_dim1 = np.linspace(-self.Earth_Radius, self.Earth_Radius, resolution)
-        inplane_dim2 = np.linspace(-self.Earth_Radius, self.Earth_Radius, resolution)
-        inplane_DIM1, inplane_DIM2 = np.meshgrid(inplane_dim1, inplane_dim2, indexing='ij')
-        radii = np.sqrt(inplane_DIM1*inplane_DIM1 + inplane_DIM2*inplane_DIM2)
-        thetas = np.arctan2(inplane_DIM2, inplane_DIM1)
-
-        # Generate slice mesh points
-        filtered_indices = []
-        filtered_slice_points = []
-        for index1 in indices_dim1:
-            for index2 in indices_dim2:
-                in_domains = False
-                for domain in domains:
-                    if not in_domains:
-                        R_min = domain[0]
-                        R_max = domain[1]
-                        theta_min = domain[2]
-                        theta_max = domain[3]
-                        if radii[index1, index2] < R_max and radii[index1, index2] > R_min \
-                            and thetas[index1, index2] < theta_max and thetas[index1, index2] > theta_min:
-                            point = inplane_dim1[index1] * base1 + inplane_dim2[index2] * base2  # Slice frame -> Earth frame
-                            filtered_slice_points.append(cart2sph(point))
-                            filtered_indices.append([index1, index2])
-                            in_domains = True
-
-        if return_slice:
-            return [np.array(filtered_indices), 
-                    np.array(filtered_slice_points),
-                    point1, point2, base1, base2, 
-                    inplane_DIM1, inplane_DIM2]
-        else:
-            return [np.array(filtered_indices), np.array(filtered_slice_points)]
             
 
     def _find_range(self, arr, percentage_min, percentage_max):
