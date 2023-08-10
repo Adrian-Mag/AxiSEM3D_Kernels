@@ -2,8 +2,8 @@ from ..handlers.station_output import StationOutput
 from ..handlers.obspy_output import ObspyfiedOutput
 from ...aux.helper_functions import window_data
 from ..handlers.element_output import ElementOutput
+from ...core.kernels.kernel import Kernel
 
-from ..handlers.element_output import ElementOutput
 import matplotlib.pyplot as plt
 import shutil
 import os 
@@ -11,18 +11,33 @@ import numpy as np
 import yaml
 
 class L2Objective_Function:
-    def __init__(self, forward_data:ElementOutput, real_data:ObspyfiedOutput):
-        self.forward_data_obj = forward_data
-        self.real_data_obj = real_data
+    def __init__(self, forward_data:ElementOutput, real_data:ObspyfiedOutput, backward_data:ElementOutput = None):
+        self.forward_data = forward_data
+        self.real_data = real_data
+        self.backward_data = backward_data
 
         # Source data
         self.source_depth = forward_data.source_depth
         self.source_latitude = forward_data.source_lat
         self.source_longitude = forward_data.source_lon
 
+        # Kernel
+        self.derivative = None
+
+    def initialize_derivaitves(self, backward_data: ElementOutput = None):
+        # Check if the backward_data is known
+        if self.backward_data is None and backward_data is None:
+            print('No backward data was provided. Use "compute_backward_field" to compute it.')
+        elif self.backward_data is not None:
+            self.derivative = Kernel(self.forward_data, self.backward_data)
+        elif backward_data is not None:
+            self.backward_data = backward_data
+            self.derivative = Kernel(self.forward_data, self.backward_data)
+
+
 
     def _make_backward_directory(self):
-        source_directory = self.forward_data_obj.path_to_simulation
+        source_directory = self.forward_data.path_to_simulation
         destination_directory = os.path.join(os.path.dirname(source_directory), 
                                            'backward_' + os.path.basename(source_directory))
         self._backward_directory = destination_directory
@@ -51,7 +66,7 @@ class L2Objective_Function:
             print("Files copied successfully!")
         except Exception as e:
             print(f"An error occurred: {e}")
-
+ 
 
     def compute_backward_field(self, station: str, network: str, location: str, real_channels: str,
                                window_left: float, window_right: float):
@@ -72,6 +87,12 @@ class L2Objective_Function:
         
         # Modify the inparam.source file 
         input('Modify the inparam.source file manually then press enter.')
+
+        # Run the backward simulation
+        input('Run the backward simulation then press enter.')
+
+        # Save the backward data as property of the objective object
+        self.backward_data = ElementOutput(os.path.join(self._backward_directory, 'output/elements'))
 
 
     def _change_source(self):
@@ -125,7 +146,7 @@ class L2Objective_Function:
                              window_right: float=None):
 
         # get real data as stream
-        stream_real_data = self.real_data_obj.stream
+        stream_real_data = self.real_data.stream
         # get real data time and time step
         real_data_time = stream_real_data[0].times('timestamp')
         dt_real_data = real_data_time[1] - real_data_time[0]
@@ -137,7 +158,7 @@ class L2Objective_Function:
 
         # Extract the station coordinates from the inventory associated with the
         # real data
-        inventory = self.real_data_obj.inv
+        inventory = self.real_data.inv
         inventory = inventory.select(network=network, 
                                     station=station, 
                                     location=location)
@@ -150,15 +171,15 @@ class L2Objective_Function:
         self._depth = station_depth  
 
         # Put the station coords in geographic spherical [rad, lat, lon] in degrees
-        sta_rad = self.forward_data_obj.Earth_Radius - station_depth
+        sta_rad = self.forward_data.Earth_Radius - station_depth
         point = [sta_rad, station_latitude, station_longitude]
         # Get the forward data as a stream at that point
-        stream_forward_data = self.forward_data_obj.stream(point, channels=['U'], coord_in_deg=True)
+        stream_forward_data = self.forward_data.stream(point, channels=['U'], coord_in_deg=True)
         # We again assume all elements have the same time axis
-        first_group = next(iter(self.forward_data_obj.element_groups_info))
-        forward_time = self.forward_data_obj.element_groups_info[first_group]['metadata']['data_time']
+        first_group = next(iter(self.forward_data.element_groups_info))
+        forward_time = self.forward_data.element_groups_info[first_group]['metadata']['data_time']
         dt_forward = forward_time[1] - forward_time[0]
-        channel_type = self.forward_data_obj.element_groups_info[first_group]['wavefields']['coordinate_frame']
+        channel_type = self.forward_data.element_groups_info[first_group]['wavefields']['coordinate_frame']
 
         # Find the master time (minmax/maxmin)
         t_max = min(real_data_time[-1], forward_time[-1])
@@ -187,7 +208,7 @@ class L2Objective_Function:
                 windowed_master_time = master_time
                 windowed_real_data = interpolated_real_data
                 windowed_forward_data = interpolated_forward_data
-            # Apply the t -> T-t transformation to the dresidue and multiply with -1
+            # Apply the t -> T-t transformation to the residue and multiply with -1
             residue[channel] = -np.flip(np.array(windowed_forward_data) - np.array(windowed_real_data))
             axs[index].plot(windowed_master_time, residue[channel])
             axs[index].plot(windowed_master_time, windowed_forward_data, color='red')
@@ -245,23 +266,23 @@ class L2Objective_Function:
         """
 
         # Load real data
-        stream_real_data = self.real_data_obj.stream.select(station=station)
+        stream_real_data = self.real_data.stream.select(station=station)
         real_data_time = stream_real_data[0].times(type="relative")
         dt_real_data = real_data_time[1] - real_data_time[0]
 
         # Extract station coordinates from inventory
-        inventory = self.real_data_obj.inv.select(network=network, station=station, location=location)
+        inventory = self.real_data.inv.select(network=network, station=station, location=location)
         station_depth = -inventory[0][0].elevation
         station_latitude = inventory[0][0].latitude
         station_longitude = inventory[0][0].longitude
 
         # Load synthetic data
-        sta_rad = self.forward_data_obj.Earth_Radius - station_depth
+        sta_rad = self.forward_data.Earth_Radius - station_depth
         point = [sta_rad, station_latitude, station_longitude]
-        stream_forward_data = self.forward_data_obj.stream(point)
-        forward_time = self.forward_data_obj.data_time
+        stream_forward_data = self.forward_data.stream(point)
+        forward_time = self.forward_data.data_time
         dt_forward = forward_time[1] - forward_time[0]
-        channel_type = self.forward_data_obj.coordinate_frame
+        channel_type = self.forward_data.coordinate_frame
 
         # Compute residue
         t_max = min(real_data_time[-1], forward_time[-1])

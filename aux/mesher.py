@@ -46,6 +46,7 @@ class SliceMesh(Mesh):
         self._compute_basis()
         self._compute_mesh(domains, resolution, coord_out)
 
+
     def _compute_basis(self):
         # Do Gram-Schmidt orthogonalization to form slice basis (Earth frame)
         self.base1 = self.point1 / np.linalg.norm(self.point1)

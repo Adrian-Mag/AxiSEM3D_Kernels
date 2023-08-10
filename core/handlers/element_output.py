@@ -786,8 +786,8 @@ class ElementOutput(AxiSEM3DOutput):
         R_max = np.max(domains[:,1])
         R_min = np.min(domains[:,0])
         if source_location is None and station_location is None:
-            source_location = np.array([self.Earth_Radius - R_max, 0, 0])
-            station_location = np.array([self.Earth_Radius - R_max, 0, 30])
+            source_location = np.array([R_max, 0, 0])
+            station_location = np.array([R_max, 0, np.radians(30)])
         
         # Get time slices from frame rate and video_duration assuming that the
         # video will include the entire time axis. We also assume that each

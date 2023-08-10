@@ -79,6 +79,7 @@ class AxiSEM3DOutput:
         if 'axisem3d' in os.path.basename(file_path):
             # The bm file is of axisem3d type
             data = {}
+            data['type'] = 'axisem3d'
             with open(file_path, 'r') as file:
                 lines = file.readlines()
 
@@ -115,6 +116,7 @@ class AxiSEM3DOutput:
         else:
             # The bm file is of axisem type
             data = {}
+            data['type'] = 'axisem'
             with open(file_path, 'r') as file:
                 lines = file.readlines()
 

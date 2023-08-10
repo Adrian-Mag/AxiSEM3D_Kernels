@@ -52,7 +52,7 @@ list_of_sources:
     - Z:
         location:
             latitude_longitude: [0, 0]
-            depth: 100e3
+            depth: 0
             ellipticity: false
             depth_below_solid_surface: true
             undulated_geometry: true
@@ -66,12 +66,12 @@ list_of_sources:
             decay_factor: 1.628
             time_shift: 0.000e+00
             use_derivative_integral: ERF
-            ascii_data_file: STF.txt
+            ascii_data_file: STF/Z.txt
             padding: FIRST_LAST
     - R:
         location:
             latitude_longitude: [0, 0]
-            depth: 100e3
+            depth: 0
             ellipticity: false
             depth_below_solid_surface: true
             undulated_geometry: true
@@ -85,12 +85,12 @@ list_of_sources:
             decay_factor: 1.628
             time_shift: 0.000e+00
             use_derivative_integral: ERF
-            ascii_data_file: STF.txt
+            ascii_data_file: STF/R.txt
             padding: FIRST_LAST
     - T:
         location:
             latitude_longitude: [0, 0]
-            depth: 100e3
+            depth: 0
             ellipticity: false
             depth_below_solid_surface: true
             undulated_geometry: true
@@ -104,5 +104,5 @@ list_of_sources:
             decay_factor: 1.628
             time_shift: 0.000e+00
             use_derivative_integral: ERF
-            ascii_data_file: STF.txt
+            ascii_data_file: STF/T.txt
             padding: FIRST_LAST

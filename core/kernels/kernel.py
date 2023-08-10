@@ -1,5 +1,6 @@
 from ..handlers.element_output import ElementOutput
 from ...aux.helper_functions import window_data
+from ...aux.mesher import Mesh, SliceMesh
 
 import numpy as np
 import pandas as pd
@@ -12,25 +13,28 @@ from tqdm import tqdm
 import random
 
 
-class L2Kernel():
+class Kernel():
 
-    def __init__(self, forward_data_path, backward_data_path):
-        self.forward_data = ElementOutput(forward_data_path)
-        self.backward_data = ElementOutput(backward_data_path)
+    def __init__(self, forward_obj: ElementOutput, backward_obj: ElementOutput):
+        self.forward_data = forward_obj
+        self.backward_data = backward_obj
 
-        # get the forward and backward time 
-        fw_time = self.forward_data.data_time
+        # get the forward and backward time (assuming that all element groups
+        # have the same time axis)
+        first_group = next(iter(self.forward_data.element_groups_info))
+        fw_time = self.forward_data.element_groups_info[first_group]['metadata']['data_time']
         self.fw_dt = fw_time[1] - fw_time[0]
-        bw_time = self.backward_data.data_time
+        bw_time = self.backward_data.element_groups_info[first_group]['metadata']['data_time']
         # Apply again t -> T-t transform on the adjoint time
         bw_time = np.flip(np.max(bw_time) - bw_time)
         self.bw_dt = bw_time[1] - bw_time[0]
 
+        # Check if the times
         # Find the master time (minmax/maxmin)
         t_max = min(fw_time[-1], bw_time[-1])
         t_min = max(fw_time[0], bw_time[0])
         dt = max(self.fw_dt, self.bw_dt)
-        self.master_time = np.arange(t_min, t_max, dt)
+        self.master_time = np.arange(t_min, t_max + dt, dt)
 
         self.fw_time = fw_time
         self.bw_time = bw_time
@@ -62,38 +66,37 @@ class L2Kernel():
         sensitivity_df.to_csv(sensitivity_out_path + '/' + 'sensitivity_rho.txt', sep=' ', index=False)
 
 
-    def evaluate_rho_0(self, point):
-        # get forwards and backward waveforms at this point
-        forward_waveform = np.nan_to_num(self.forward_data.load_data_at_point(point, channels=['U']))
-        backward_waveform = np.nan_to_num(self.backward_data.load_data_at_point(point, channels=['U']))
-        
+    def evaluate_rho_0(self, points: np.ndarray) -> np.ndarray:
+        # get forwards and backward displacements at these points
+        forward_waveform = np.nan_to_num(self.forward_data.load_data(points=points, channels=['U'], in_deg=False))
+        backward_waveform = np.nan_to_num(self.backward_data.load_data(points=points, channels=['U'], in_deg=False))
+
         # Apply again t -> T-t transform on the adjoint data 
-        backward_waveform = np.flip(backward_waveform)
+        backward_waveform = np.flip(backward_waveform, axis=2)
         # Compute time at the derivative points
         fw_time = self.fw_time[0:-1] + self.fw_dt / 2
         bw_time = self.bw_time[0:-1] + self.bw_dt / 2
         # Compute time derivatives wrt to time
-        dfwdt = np.diff(forward_waveform) / self.fw_dt
-        dbwdt = np.diff(backward_waveform) / self.bw_dt
+        dfwdt = np.diff(forward_waveform, axis=2) / self.fw_dt
+        dbwdt = np.diff(backward_waveform, axis=2) / self.bw_dt
 
-        # Project both arrays on the master time
-        interp_dfwdt = []
-        interp_dbwdt = []
+        # Interpolate onto the master_time
+        interp_dfwdt = np.empty(dfwdt.shape[:-1] + (len(self.master_time),))
+        interp_dbwdt = np.empty(dbwdt.shape[:-1] + (len(self.master_time),))
 
-        for i in range(3):
-            interp_dfwdt.append(np.interp(self.master_time, fw_time, dfwdt[i]))
-            interp_dbwdt.append(np.interp(self.master_time, bw_time, dbwdt[i]))
-        interp_dfwdt = np.array(interp_dfwdt)
-        interp_dbwdt = np.array(interp_dbwdt)
+        for i in range(dfwdt.shape[0]):
+            for j in range(3):
+                interp_dfwdt[i,j] = np.interp(self.master_time, fw_time, dfwdt[i,j])
+                interp_dbwdt[i,j] = np.interp(self.master_time, bw_time, dbwdt[i,j])
 
         # make dot product 
-        fw_bw = (interp_dfwdt * interp_dbwdt).sum(axis=0)
+        fw_bw = np.sum(interp_dfwdt * interp_dbwdt, axis=1)
 
         sensitivity = integrate.simpson(fw_bw, dx=(self.master_time[1] - self.master_time[0]))
         return sensitivity
     
 
-    def evaluate_lambda_0(self, point):
+    def evaluate_lambda(self, points: np.ndarray) -> np.ndarray:
         # K_lambda^zero = int_T (div u)(div u^t) = int_T (tr E)(tr E^t) = 
         # int_T (EZZ+ERR+ETT)(EZZ^t+ERR^t+ETT^t)
 
@@ -101,31 +104,26 @@ class L2Kernel():
         # if it is not available, then we will use the gradient of displacement
         
         # get forwards and backward waveforms at this point
-        try:
-            forward_waveform = np.nan_to_num(self.forward_data.load_data_at_point(point, channels=['EZZ', 'ERR', 'ETT']))
-            backward_waveform = np.nan_to_num(self.backward_data.load_data_at_point(point, channels=['EZZ', 'ERR', 'ETT']))
-        except:
-            forward_waveform = np.nan_to_num(self.forward_data.load_data_at_point(point, channels=['GZZ', 'GRR', 'GTT']))
-            backward_waveform = np.nan_to_num(self.backward_data.load_data_at_point(point, channels=['GZZ', 'GRR', 'GTT']))
+        forward_waveform = np.nan_to_num(self.forward_data.load_data(points, channels=['GZZ', 'GRR', 'GTT'], in_deg=False))
+        backward_waveform = np.nan_to_num(self.backward_data.load_data(points, channels=['GZZ', 'GRR', 'GTT'], in_deg=False))
+
         #compute trace of each wavefield and flip adjoint in time
-        trace_E = forward_waveform.sum(axis=0)
-        trace_E_adjoint = np.flip(backward_waveform.sum(axis=0))
+        trace_G = forward_waveform.sum(axis=1)
+        trace_G_adjoint = np.flip(backward_waveform.sum(axis=1), axis=1)
 
         # Project both on master time
-        interp_trace_E = []
-        interp_trace_E_adjoint = []
+        interp_trace_G = np.empty(trace_G.shape[:-1] + (len(self.master_time),))
+        interp_trace_G_adjoint = np.empty(trace_G.shape[:-1] + (len(self.master_time),))
 
-        interp_trace_E.append(np.interp(self.master_time, self.fw_time, trace_E))
-        interp_trace_E_adjoint.append(np.interp(self.master_time, self.bw_time, trace_E_adjoint))
-        
-        interp_trace_E = np.array(interp_trace_E)
-        interp_trace_E_adjoint = np.array(interp_trace_E_adjoint)
+        for i in range(len(points)):
+            interp_trace_G[i] = np.interp(self.master_time, self.fw_time, trace_G[i])
+            interp_trace_G_adjoint[i] = np.interp(self.master_time, self.bw_time, trace_G_adjoint[i])
 
-        return integrate.simpson(interp_trace_E * interp_trace_E_adjoint, 
+        return integrate.simpson(interp_trace_G * interp_trace_G_adjoint, 
                                  dx = (self.master_time[1] - self.master_time[0]))
 
 
-    def evaluate_mu_0(self, point):
+    def evaluate_mu(self, points: np.ndarray) -> np.ndarray:
         # K_mu_0 = int_T (grad u^t):(grad u) + (grad u^t):(grad u)^T 
         # = int_T 2E^t:E
 
@@ -133,60 +131,49 @@ class L2Kernel():
         # if it is not available, then we will use the gradient of displacement
 
         # get forwards and backward waveforms at this point
-        if 'E' in self.forward_data.channels and 'E' in self.backward_data.channels:
-            E = np.nan_to_num(self.forward_data.load_data_at_point(point, channels=['E']))
-            E_adjoint = np.nan_to_num(self.backward_data.load_data_at_point(point, channels=['E']))
-            
-            # flip adjoint in time
-            E_adjoint = np.flip(E_adjoint)
-            
-            # Project both arrays on the master time
-            interp_E = []
-            interp_E_adjoint = []
-            for i in range(6):
-                interp_E.append(np.interp(self.master_time, self.fw_time, E[i]))
-                interp_E_adjoint.append(np.interp(self.master_time, self.bw_time, E_adjoint[i]))
-            interp_E = np.array(interp_E)
-            interp_E_adjoint = np.array(interp_E_adjoint)
-                
-            weights = np.array([1, 1, 1, 2, 2, 2])
-            # Multiply 
-            integrand = 2 * np.sum((interp_E_adjoint * interp_E) * weights[:, np.newaxis], axis=1)
-        elif 'G' in self.forward_data.channels and 'G' in self.backward_data.channels:
-            G = np.nan_to_num(self.forward_data.load_data_at_point(point, channels=['G']))
-            G_adjoint = np.nan_to_num(self.backward_data.load_data_at_point(point, channels=['G']))
-            # flip adjoint in time
-            G_adjoint = np.flip(G_adjoint)
-            
-            # Project both arrays on the master time
-            interp_G = []
-            interp_G_adjoint = []
-            for i in range(9):
-                interp_G.append(np.interp(self.master_time, self.fw_time, G[i]))
-                interp_G_adjoint.append(np.interp(self.master_time, self.bw_time, G_adjoint[i]))
-            interp_G = np.array(interp_G).reshape(3,3,len(self.master_time))
-            interp_G_adjoint = np.array(interp_G_adjoint).reshape(3,3,len(self.master_time))
+        G_forward = np.nan_to_num(self.forward_data.load_data(points, channels=['G']))
+        G_adjoint = np.nan_to_num(self.backward_data.load_data(points, channels=['G']))
 
-            # Multiply
-            integrand = np.sum((interp_G_adjoint * interp_G) + (interp_G_adjoint * interp_G.transpose(1,0,2)), axis=(0,1))
+        # flip adjoint in time
+        G_adjoint = np.flip(G_adjoint, axis=2)
+        
+        # Project both arrays on the master time
+        interp_G_forward = np.empty(G_forward.shape[:-1] + (len(self.master_time),))
+        interp_G_adjoint = np.empty(G_adjoint.shape[:-1] + (len(self.master_time),))
+        for i in range(len(points)):
+            for j in range(9):
+                interp_G_forward[i,j] = np.interp(self.master_time, self.fw_time, G_forward[i,j])
+                interp_G_adjoint[i,j] = np.interp(self.master_time, self.bw_time, G_adjoint[i,j])
+        interp_G_forward = interp_G_forward.reshape(len(points), 3, 3, len(self.master_time))
+        interp_G_adjoint = interp_G_adjoint.reshape(len(points), 3, 3, len(self.master_time))
+
+        # Multiply
+        integrand = np.sum(interp_G_adjoint * (interp_G_forward + interp_G_forward.transpose(0,2,1,3)), axis=(1,2))
 
         return integrate.simpson(integrand, dx = (self.master_time[1] - self.master_time[0]))
-    
-    def evaluate_rho(self, point):
+
+
+    def evaluate_rho(self, points: np.ndarray) -> np.ndarray:
         # K_rho = K_rho_0 + (vp^2-2vs^2)K_lambda_0 + vs^2 K_mu_0
-        radii = np.array(self.forward_data.base_model['R'])
+        if self.forward_data.base_model['type'] == 'axisem3d':
+            radii = np.array(self.forward_data.base_model['R'])
+        else:
+            radii = np.array(self.forward_data.base_model['DATA']['radius'])
         is_increasing = radii[0] < radii[1]
         if is_increasing:
-            index = np.searchsorted(radii, point[0])
+            indices = np.searchsorted(radii, points[:,0])
         else:
-            index = np.searchsorted(-radii, -point[0])
-        if index == 0 or index >= len(radii):
-            print('Point outside of base model domain')
-            return 1
+            indices = np.searchsorted(-radii, -points[:,0])
+
+        if self.forward_data.base_model['type'] == 'axisem3d':
+            vp = self.forward_data.base_model['VP'][indices - 1]
+            vs = self.forward_data.base_model['VS'][indices - 1]
         else:
-            vp = self.forward_data.base_model['VP'][index - 1]
-            vs = self.forward_data.base_model['VS'][index - 1]
-        return self.evaluate_rho_0(point) + (vp*vp - 2*vs*vs)*self.evaluate_lambda_0(point) + vs*vs*self.evaluate_mu_0(point)
+            vp = np.array(self.forward_data.base_model['DATA']['vp'])[indices - 1]
+            vs = np.array(self.forward_data.base_model['DATA']['vs'])[indices - 1]
+
+        return self.evaluate_rho_0(points) + (vp*vp - 2*vs*vs)*self.evaluate_lambda(points) + vs*vs*self.evaluate_mu(points)
+
 
     def evaluate_vs(self, point):
         # K_vs = 2*rho*vs*(K_mu_0 - 2*K_lambda_0)
@@ -222,39 +209,54 @@ class L2Kernel():
         return 2 * rho * vp * self.evaluate_lambda_0(point)
 
 
-    def evaluate_on_slice(self, source_loc: list, station_loc: list,
-                          R_min: float, R_max: float, theta_min: float, theta_max: float, 
-                          N: int, slice_out_path: str, show_points: bool=False,
+    def evaluate_on_slice(self, source_location: list=None, station_location: list=None,
+                          resolution: int=50, domains: list=None,
                           log_plot: bool=False, low_range: float=0.1, high_range: float=0.999):
+        # Create default domains if None were given
+        if domains is None:
+            domains = []
+            for element_group in self.forward_data.element_groups_info.values():
+                domains.append(element_group['elements']['vertical_range'] + [-2*np.pi, 2*np.pi])
+        domains = np.array(domains)
+
+        # Create source and station if none were given
+        R_max = np.max(domains[:,1])
+        R_min = np.min(domains[:,0])
+        if source_location is None and station_location is None:
+            source_location = np.array([R_max, 
+                                        np.radians(self.forward_data.source_lat), 
+                                        np.radians(self.forward_data.source_lon)])
+            station_location = np.array([R_max, 
+                                         np.radians(self.backward_data.source_lat), 
+                                         np.radians(self.backward_data.source_lon)])
+
+        # Create e slice mesh
+        mesh = SliceMesh(source_location, station_location, domains, resolution)
         
-        filtered_indices, filtered_slice_points, \
-        point1, point2, base1, base2, \
-        inplane_DIM1, inplane_DIM2 = self.forward_data._create_slice(source_loc, station_loc, R_max=R_max, theta_min=theta_min, theta_max=theta_max,
-                                                                        R_min=R_min, resolution=N, return_slice=True)
-        # Initialize sensitivity values on the slice (Slice frame)
-        inplane_sensitivity = np.zeros((N, N))
-        
-        with tqdm(total=len(filtered_slice_points)) as pbar:
-            for [index1, index2], point in zip(filtered_indices, filtered_slice_points):
-                inplane_sensitivity[index1, index2] = self.evaluate_mu_0(point)
-                pbar.update(1)
-        
+        # Compute sensitivity values on the slice (Slice frame)
+        inplane_sensitivity = np.full((mesh.resolution, mesh.resolution), fill_value=np.NaN)
+        data = self.evaluate_rho_0(mesh.points)
+        # Distribute the values in the matrix that will be plotted
+        index = 0
+        for [index1, index2], _ in zip(mesh.indices, mesh.points):
+            inplane_sensitivity[index1, index2] = data[index]
+            index += 1
+
         if log_plot is False:
             _, cbar_max = self._find_range(inplane_sensitivity, percentage_min=0, percentage_max=1)
             cbar_max *= (high_range * high_range)
             cbar_min = -cbar_max
             plt.figure()
-            contour = plt.contourf(inplane_DIM1, inplane_DIM2, np.nan_to_num(inplane_sensitivity),
+            contour = plt.contourf(mesh.inplane_DIM1, mesh.inplane_DIM2, np.nan_to_num(inplane_sensitivity),
                         levels=np.linspace(cbar_min, cbar_max, 100), cmap='RdBu_r', extend='both')
         else:
             cbar_min, cbar_max = self._find_range(np.log10(np.abs(inplane_sensitivity)), percentage_min=low_range, percentage_max=high_range)
             
             plt.figure()
-            contour = plt.contourf(inplane_DIM1, inplane_DIM2, np.log10(np.abs(inplane_sensitivity)),
+            contour = plt.contourf(mesh.inplane_DIM1, mesh.inplane_DIM2, np.log10(np.abs(inplane_sensitivity)),
                         levels=np.linspace(cbar_min, cbar_max, 100), cmap='RdBu_r', extend='both')
-        if show_points:
-            plt.scatter(np.dot(point1, base1), np.dot(point1, base2))
-            plt.scatter(np.dot(point2, base1), np.dot(point2, base2))
+        plt.scatter(np.dot(mesh.point1, mesh.base1), np.dot(mesh.point1, mesh.base2))
+        plt.scatter(np.dot(mesh.point2, mesh.base1), np.dot(mesh.point2, mesh.base2))
         cbar = plt.colorbar(contour)
 
         cbar_ticks = np.linspace(cbar_min, cbar_max, 5) # Example tick values
