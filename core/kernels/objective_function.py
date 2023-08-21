@@ -35,7 +35,6 @@ class L2Objective_Function:
             self.derivative = Kernel(self.forward_data, self.backward_data)
 
 
-
     def _make_backward_directory(self):
         source_directory = self.forward_data.path_to_simulation
         destination_directory = os.path.join(os.path.dirname(source_directory), 

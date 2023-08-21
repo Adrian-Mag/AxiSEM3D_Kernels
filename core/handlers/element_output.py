@@ -814,8 +814,8 @@ class ElementOutput(AxiSEM3DOutput):
         logging.info('Create animation')
         # Create a figure and axis
         num_subplots = len(channels)
-        num_rows = int(np.ceil(num_subplots / 2))
-        num_cols = 2 if num_subplots > 1 else 1
+        num_rows = int(np.ceil(num_subplots / 3))
+        num_cols = 3 if num_subplots > 1 else 1
 
         # Make a cbar
         cbar_min = []
@@ -969,12 +969,6 @@ class ElementOutput(AxiSEM3DOutput):
         xda_list_element_coords = []
         dict_xda_list_element = {}
         detailed_channels = [str_byte.decode('utf-8') for str_byte in nc_files[0].list_channel.data]
-        updated_array = []
-        for element in detailed_channels:
-            letter = element[0]
-            digits = ''.join(sorted(element[1:]))
-            updated_array.append(letter + digits)
-        detailed_channels = updated_array
         elements_index_limits = [0]
         index_limit = 0
         ######dict_xda_data_wave = {}
@@ -1012,7 +1006,7 @@ class ElementOutput(AxiSEM3DOutput):
                list_element_coords, dict_list_element, \
                nc_files, elements_index_limits, \
                detailed_channels
-        
+
 
     def _compute_rotation_matrix(self):
         """Computes the rotation matrix that aligns the z axis with the source axis

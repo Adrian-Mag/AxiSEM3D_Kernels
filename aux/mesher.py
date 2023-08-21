@@ -13,7 +13,7 @@ class Mesh(ABC):
 class SliceMesh(Mesh):
         
     def __init__(self, point1: np.ndarray, point2: np.ndarray, domains: list, resolution: int,
-                    coord_in: str='spherical', coord_out: str='spherical'):
+                    coord_in: str='spherical', coord_out: str='spherical') -> None:
         """
         Create a mesh for a slice of Earth within a specified radius range and
         resolution. At the bases there is a square 2D uniform mesh whose
@@ -99,3 +99,21 @@ class SliceMesh(Mesh):
 
     def plot_mesh(self):
         return super().plot_mesh()
+    
+
+class SphereMesh(Mesh):
+
+    def __init__(self, resolution: int) -> None:
+        self.resolution = resolution
+        self._compute_mesh()
+
+    def _compute_mesh(self):
+        # Output is in format (lat, lon) in radians
+        points = []
+        lats = np.linspace(-np.pi, np.pi, self.resolution)
+        for lat in lats:
+            lons = np.linspace(-np.pi, np.pi, int(self.resolution * np.sin(lat)))
+            for lon in lons:
+                points.append([lat, lon])
+        
+        self.points =  np.array(points)
