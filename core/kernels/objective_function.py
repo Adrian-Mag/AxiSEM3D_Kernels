@@ -10,8 +10,16 @@ import os
 import numpy as np
 import yaml
 
-class L2Objective_Function:
-    def __init__(self, forward_data:ElementOutput, real_data:ObspyfiedOutput, backward_data:ElementOutput = None):
+
+""" class XObjectiveFunction:
+    def __init__(self, forward_data:ElementOutput, backward_data:ElementOutput=None):
+        self.forward_data = forward_data
+        self.backward_data = backward_data """
+
+
+
+class L2ObjectiveFunction:
+    def __init__(self, forward_data:ElementOutput, real_data:ObspyfiedOutput, backward_data:ElementOutput=None):
         self.forward_data = forward_data
         self.real_data = real_data
         self.backward_data = backward_data
@@ -24,6 +32,7 @@ class L2Objective_Function:
         # Kernel
         self.derivative = None
 
+    
     def initialize_derivaitves(self, backward_data: ElementOutput = None):
         # Check if the backward_data is known
         if self.backward_data is None and backward_data is None:

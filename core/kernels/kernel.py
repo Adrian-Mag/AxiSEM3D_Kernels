@@ -241,7 +241,7 @@ class Kernel():
         points = np.dstack((LAT,LON)).reshape(-1,2)
 
         kernel = self.evaluate_K_dv(points, radius=5701000).reshape(LON.shape)
-        
+
         # Construct CMB and Surface matrices
         R_disc = np.ones(np.shape(LON))
 
@@ -313,7 +313,7 @@ class Kernel():
                     3 * rho_lower * vs_lower**2 * self.evaluate_mu(points=lower_points) 
 
         return K_dv_upper - K_dv_lower
-            
+
 
     def evaluate_vp(self, point):
         # K_vs = 2*rho*vp*K_lambda_0
