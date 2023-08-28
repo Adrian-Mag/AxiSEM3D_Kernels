@@ -1,2 +1,2 @@
 from .kernel import Kernel
-from .objective_function import L2Objective_Function
+from .objective_function import L2ObjectiveFunction

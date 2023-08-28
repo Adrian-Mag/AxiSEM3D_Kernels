@@ -157,7 +157,7 @@ class ElementOutput(AxiSEM3DOutput):
         inv.write(obspyfy_path + '/' + stations_file_name + '_inv.xml', format="stationxml")
 
         stream = self.stream_STA(path_to_station_file)
-        stream.write(obspyfy_path + '/' + self.element_group_name + '.mseed', format="MSEED") 
+        stream.write(obspyfy_path + '/' + stations_file_name + '.mseed', format="MSEED") 
 
 
     def create_inventory(self, path_to_station_file: str):
@@ -197,7 +197,7 @@ class ElementOutput(AxiSEM3DOutput):
                 stations=[])
                 # add new network to inventory
                 inv.networks.append(net)
-            
+
             # Create station (should be unique!)
             sta = Station(
             code=station['name'],
@@ -205,9 +205,22 @@ class ElementOutput(AxiSEM3DOutput):
             longitude=station['longitude'],
             elevation=-station['depth'])
             net.stations.append(sta)
-            
+
             # Create the channels
-            for channel in self.detailed_channels:
+            # here we must find in which element group is this station located
+            rad = self.Earth_Radius - station['depth']
+            lat = np.deg2rad(station['latitude'])
+            lon = np.deg2rad(station['longitude'])
+            point = np.array([rad, lat, lon]).reshape(1,3)
+            # get inplane coords
+            point = sph2cart(point)
+            point = cart2cyl(cart_geo2cart_src(points=point, 
+                                                rotation_matrix=self.rotation_matrix))
+            point = cart2polar(point[0,0], point[0,1])
+            point[0,1] += np.pi/2
+            element_group = self._separate_by_inplane_domain(point.reshape(1,2))
+            key = list(self.element_groups_info.keys())[element_group[0]]
+            for channel in self.element_groups_info[key]['metadata']['detailed_channels']:
                 cha = Channel(
                 code=channel,
                 location_code="",
@@ -225,7 +238,7 @@ class ElementOutput(AxiSEM3DOutput):
             networks.append(station['network'])
             station_names.append(station['name'])
             locations.append('') # Axisem does not use locations
-            channels_list.append(self.detailed_channels)
+            channels_list.append(self.element_groups_info[key]['metadata']['detailed_channels'])
 
         return inv
 
@@ -260,31 +273,42 @@ class ElementOutput(AxiSEM3DOutput):
             stalon = station['longitude']
             stadepth = station['depth']
             starad = self.Earth_Radius - stadepth
+            
+            # Find the element group of this point
+            point = np.array([starad, stalat, stalon]).reshape(1,3)
+            point = sph2cart(point)
+            point = cart2cyl(cart_geo2cart_src(points=point, 
+                                                rotation_matrix=self.rotation_matrix))
+            point = cart2polar(point[0,0], point[0,1])
+            point[0,1] += np.pi/2
+            element_group = self._separate_by_inplane_domain(point.reshape(1,2))
+            key = list(self.element_groups_info.keys())[element_group[0]]
+
             # get the data at this station (assuming RTZ components)
-            wave_data = self.load_data_at_point(point=np.array([starad, stalat, stalon]),
-                                                coord_in_deg=True,
-                                                channels=channels, 
-                                                time_slices=time_slices)
-            # COnstruct metadata
-            delta = self.data_time[1] - self.data_time[0]
-            npts = len(self.data_time)
+            wave_data = self.load_data(points=np.array([starad, stalat, stalon]),
+                                        channels=channels, 
+                                        time_slices=time_slices)
+            # Construct metadata
+            data_time = self.element_groups_info[key]['metadata']['data_time']
+            delta = data_time[1] - data_time[0]
+            npts = len(data_time)
             network = station['network']
             station_name = station['name']
             if channels is not None:
-                selected_detailed_channels = [element for element in self.detailed_channels \
+                selected_detailed_channels = [element for element in self.element_groups_info[key]['metadata']['detailed_channels'] \
                                             if any(element.startswith(prefix) for prefix in channels)]
             else:
-                selected_detailed_channels = self.detailed_channels
+                selected_detailed_channels = self.element_groups_info[key]['metadata']['detailed_channels']
             for chn_index, chn in enumerate(selected_detailed_channels):
                 # form the traces at the channel level
-                trace = obspy.Trace(wave_data[chn_index])
+                trace = obspy.Trace(wave_data[0][chn_index])
                 trace.stats.delta = delta
                 trace.stats.ntps = npts
                 trace.stats.network = network
                 trace.stats.station = station_name
                 trace.stats.location = ''
                 trace.stats.channel = chn
-                trace.stats.starttime = obspy.UTCDateTime("1970-01-01T00:00:00.0Z") + self.data_time[0]
+                trace.stats.starttime = obspy.UTCDateTime("1970-01-01T00:00:00.0Z") + data_time[0]
                 stream.append(trace)
 
         return stream
