@@ -18,7 +18,7 @@ import time
 import warnings 
 import plotly.graph_objects as go
 import logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.CRITICAL, format='%(asctime)s - %(levelname)s - %(message)s')
 import sys
 
 from .axisem3d_output import AxiSEM3DOutput
@@ -391,7 +391,8 @@ class ElementOutput(AxiSEM3DOutput):
 
     def load_data(self, points: np.ndarray, frame: str='geographic', 
                   coords: str='spherical', in_deg: bool=True,
-                  channels: list=None, time_slices: list=None):
+                  channels: list=None, time_slices: list=None,
+                  batch_size: int=1000):
         # Only options for coords are geographic+spherical,
         # geographic+cartesian, source+cylindrical.
 
@@ -436,13 +437,38 @@ class ElementOutput(AxiSEM3DOutput):
         # Separate inplane points by the element group they are part of
         group_mapping = self._separate_by_inplane_domain(inplane_points)    
 
-        # Interpolate all groups
+        """ # Interpolate all groups
         for group_index, element_group in enumerate(self.element_groups_info):
             point_index = np.where(group_mapping==group_index)
             group_points = points[point_index]
             if len(group_points) != 0:
                 final_result[point_index,:,:] = self.load_data_from_element_group(group_points, element_group,
-                                                                                channel_slices, time_slices)
+                                                                                channel_slices, time_slices) """
+
+        # Interpolate all groups
+        with tqdm(total=len(points), desc="Loading and interpolating", unit="point") as pbar:
+            for group_index, element_group in enumerate(self.element_groups_info):
+                point_index = np.where(group_mapping==group_index)
+                group_points = points[point_index]
+
+                if len(group_points) != 0:
+
+                    # create batches at element group level
+                    num_batches = len(group_points) // batch_size
+
+                    for batch_index in range(num_batches):
+                        point_index_batch = (point_index[0][batch_index*batch_size:(batch_index+1)*batch_size],)
+                        group_points_batch = group_points[batch_index*batch_size:(batch_index+1)*batch_size]
+
+                        final_result[point_index_batch,:,:] = self.load_data_from_element_group(group_points_batch, element_group,
+                                                                                            channel_slices, time_slices, pbar)
+                    # now compute the remaining group points
+                    point_index_batch_residue = (point_index[0][num_batches*batch_size:],)
+                    group_points_batch_residue = group_points[num_batches*batch_size:]
+                    final_result[point_index_batch_residue,:,:] = self.load_data_from_element_group(
+                                                                        group_points_batch_residue, element_group,
+                                                                        channel_slices, time_slices, pbar)
+
 
         return final_result
 
@@ -488,7 +514,8 @@ class ElementOutput(AxiSEM3DOutput):
     
 
     def load_data_from_element_group(self, points: np.ndarray, group: str,
-                                    channel_slices: list=None, time_slices: list=None):
+                                    channel_slices: list=None, time_slices: list=None, 
+                                    pbar=None):
         # All points must be from the same element group!!!
 
         # Initialize the final result
@@ -563,186 +590,182 @@ class ElementOutput(AxiSEM3DOutput):
 
         # Go file by file, nag by nag
         logging.info('---START LOADING---')
-        total_iterations = 0
-        for file in main_dict.values():
-            total_iterations += len(file.keys())
-        with tqdm(total=total_iterations, desc="Loading and interpolating", unit="file") as pbar:
-            for file in main_dict.keys():
-                for nag in main_dict[file].keys():
-                    # Grab the indices of the elements in the self.list_element_coords
-                    elements = list(main_dict[file][nag].keys())
-                    elements_in_file_nag = [self.element_groups_info[group]['metadata']['list_element_na'][element][3] for element in elements]
+        for file in main_dict.keys():
+            for nag in main_dict[file].keys():
+                # Grab the indices of the elements in the self.list_element_coords
+                elements = list(main_dict[file][nag].keys())
+                elements_in_file_nag = [self.element_groups_info[group]['metadata']['list_element_na'][element][3] for element in elements]
 
-                    # Find problematic elements
-                    problematic_elements = [] # contains the indices of the problematic elements in the local element list
-                    proof = []
-                    for index, element in enumerate(self.element_groups_info[group]['metadata']['list_element_coords'][elements]):
-                        s = element[:,0]
-                        z = element[:,1]
-                        points = cart2polar(s,z)
-                        r = points[[0,1,2],0]
-                        theta = points[[0,3,6],1]
-                        r_grid, theta_grid = np.meshgrid(r, theta)
-                        expected_points = np.column_stack((r_grid.ravel(), theta_grid.ravel()))
-                        if not np.allclose(points, expected_points, rtol=1e-6):
-                            problematic_elements.append(index)
-                            proof.append(points)
-                    #self.plot_mesh(np.array(elements)[problematic_elements])
-                    
-                    # Read the data from the file
-                    logging.info('Loading raw data.')
-                    data = self.element_groups_info[group]['metadata']['files'][file]['data_wave__NaG=%d' % nag][elements_in_file_nag][:,:,:,channel_slices,time_slices].data
+                # Find problematic elements
+                problematic_elements = [] # contains the indices of the problematic elements in the local element list
+                proof = []
+                for index, element in enumerate(self.element_groups_info[group]['metadata']['list_element_coords'][elements]):
+                    s = element[:,0]
+                    z = element[:,1]
+                    points = cart2polar(s,z)
+                    r = points[[0,1,2],0]
+                    theta = points[[0,3,6],1]
+                    r_grid, theta_grid = np.meshgrid(r, theta)
+                    expected_points = np.column_stack((r_grid.ravel(), theta_grid.ravel()))
+                    if not np.allclose(points, expected_points, rtol=1e-6):
+                        problematic_elements.append(index)
+                        proof.append(points)
+                #self.plot_mesh(np.array(elements)[problematic_elements])
+                
+                # Read the data from the file
+                logging.info('Loading raw data.')
+                data = self.element_groups_info[group]['metadata']['files'][file]['data_wave__NaG=%d' % nag][elements_in_file_nag][:,:,:,channel_slices,time_slices].data
 
-                    # Data expansion for unique inplane points
-                    logging.info('Expanding data to all unique inplane points.')
-                    in_element_repetitions = [len(inplane_points) for inplane_points in main_dict[file][nag].values()]
-                    # may delete later
-                    map_of_problematique = np.zeros(len(elements))
-                    map_of_problematique[problematic_elements] = 1
-                    if max(in_element_repetitions) == 1:
-                        # This is the case where in each element there is only one
-                        # inplane point where we need to run the inplane
-                        # interpolation
-                        expanded_data = data # no expansion occurs in this case
-                        expanded_map_of_problematique = map_of_problematique
-                    else:
-                        # If there are multiple unique inplane points in some
-                        # elements, we need to expand the data
-                        final_shape = (np.sum(np.array(in_element_repetitions)),) + data.shape[1:]
-                        expanded_data = np.empty(final_shape)
-                        expanded_map_of_problematique = np.zeros(final_shape[0])
-                        expanded_index = 0
-                        for index, repetitions in enumerate(in_element_repetitions):
-                            if repetitions == 1:
-                                expanded_data[expanded_index] = data[index]
-                                expanded_map_of_problematique[expanded_index] = map_of_problematique[index]
-                                expanded_index += 1
-                            else:
-                                for _ in range(repetitions):
-                                    expanded_data[expanded_index] = data[index]
-                                    expanded_map_of_problematique[expanded_index] = map_of_problematique[index]
-                                    expanded_index += 1
-                    map_of_problematique = np.where(expanded_map_of_problematique == 1)[0]
-
-                    # Find the inplane coords for each element
-                    logging.info('Get unique inplane coords')
-                    inplane_coords = []
-                    for sub_dict in main_dict[file][nag].values():
-                        for key in sub_dict.keys():
-                            inplane_coords.append(key)
-
-                    # Transform to polar coords
-                    s, z = zip(*inplane_coords)
-                    s = np.array(s)
-                    z = np.array(z)
-                    inplane_coords = cart2polar(s, z)
-
-                    # Find the r and theta vectors for each element and construct
-                    # lagrange interpolation matrix
-
-                    # Expand coords of element GLL points to unique inplane points
-                    logging.info('Expand element coords.')
-                    points_of_interest = self.element_groups_info[group]['metadata']['list_element_coords'][elements][:,[0,1,2,3,6],:]
-                    final_shape = (np.sum(np.array(in_element_repetitions)),) +  points_of_interest.shape[1:]
-                    expanded_points_of_interest = np.empty(final_shape)
+                # Data expansion for unique inplane points
+                logging.info('Expanding data to all unique inplane points.')
+                in_element_repetitions = [len(inplane_points) for inplane_points in main_dict[file][nag].values()]
+                # may delete later
+                map_of_problematique = np.zeros(len(elements))
+                map_of_problematique[problematic_elements] = 1
+                if max(in_element_repetitions) == 1:
+                    # This is the case where in each element there is only one
+                    # inplane point where we need to run the inplane
+                    # interpolation
+                    expanded_data = data # no expansion occurs in this case
+                    expanded_map_of_problematique = map_of_problematique
+                else:
+                    # If there are multiple unique inplane points in some
+                    # elements, we need to expand the data
+                    final_shape = (np.sum(np.array(in_element_repetitions)),) + data.shape[1:]
+                    expanded_data = np.empty(final_shape)
+                    expanded_map_of_problematique = np.zeros(final_shape[0])
                     expanded_index = 0
                     for index, repetitions in enumerate(in_element_repetitions):
                         if repetitions == 1:
-                            expanded_points_of_interest[expanded_index] = points_of_interest[index]
+                            expanded_data[expanded_index] = data[index]
+                            expanded_map_of_problematique[expanded_index] = map_of_problematique[index]
                             expanded_index += 1
                         else:
                             for _ in range(repetitions):
-                                expanded_points_of_interest[expanded_index] = points_of_interest[index]
+                                expanded_data[expanded_index] = data[index]
+                                expanded_map_of_problematique[expanded_index] = map_of_problematique[index]
                                 expanded_index += 1
-                    points_of_interest = expanded_points_of_interest
-                    # remove the points of interest located in problematique elements
-                    points_of_interest = np.delete(points_of_interest, map_of_problematique, axis=0)
-                    good_inplane_coords = np.delete(inplane_coords, map_of_problematique, axis=0)
-                    original_shape = points_of_interest.shape
-                    points_of_interest = points_of_interest.reshape((points_of_interest.shape[0]*points_of_interest.shape[1], 2))
-                    points_of_interest = cart2polar(points_of_interest[:,0], points_of_interest[:,1]).reshape(original_shape)
-                    GLL_rads = points_of_interest[:,[0,1,2],[0]]
-                    GLL_thetas = points_of_interest[:,[2,3,4],[1]]
-                    
-                    # Compute interpolation weights (LIM)
-                    logging.info('Compute LIM')
-                    lr = np.array([
-                        self._lagrange(good_inplane_coords[:,0], GLL_rads, i, lagrange_order) 
-                        for i in range(lagrange_order)]).transpose()
-                    ltheta = np.array([
-                        self._lagrange(good_inplane_coords[:,1], GLL_thetas, i, lagrange_order) 
-                        for i in range(lagrange_order)]).transpose()
-                    LIM = np.array([
-                        np.outer(ltheta_i, lr_i).flatten() 
-                        for ltheta_i, lr_i in zip(ltheta, lr)])
+                map_of_problematique = np.where(expanded_map_of_problematique == 1)[0]
 
-                    # Manually add back into LIM some improvised weights at the
-                    # locations within map_of_problematique
-                    if len(LIM) == 0:
-                        LIM = np.concatenate((LIM,np.array([0,0,0,0,1,0,0,0,0])), axis=0)
-                        LIM = LIM.reshape((1,len(LIM)))
-                        for location in map_of_problematique[1:]:
-                            LIM = np.insert(LIM, location, np.array([0,0,0,0,1,0,0,0,0]), axis=0)
-                    else:
-                        for location in map_of_problematique:
-                            LIM = np.insert(LIM, location, np.array([0,0,0,0,1,0,0,0,0]), axis=0)
-                    
-                    # Interpolate
-                    logging.info('Inplane interpolate')
-                    inplane_interpolated_data = np.sum(expanded_data * LIM[:,np.newaxis,:,np.newaxis,np.newaxis], axis=2)
+                # Find the inplane coords for each element
+                logging.info('Get unique inplane coords')
+                inplane_coords = []
+                for sub_dict in main_dict[file][nag].values():
+                    for key in sub_dict.keys():
+                        inplane_coords.append(key)
 
-                    # Add Fourier Coefficients
-                    inplane_point_repetitions = []
-                    for inplane_points in main_dict[file][nag].values():
-                        for azimuthal_points in inplane_points.values():
-                            inplane_point_repetitions.append(len(azimuthal_points))                        
-                    
-                    # expand to point level
-                    logging.info('Expanding data to points')
-                    if max(inplane_point_repetitions) == 1:
-                        expanded_interpolated_data = inplane_interpolated_data
+                # Transform to polar coords
+                s, z = zip(*inplane_coords)
+                s = np.array(s)
+                z = np.array(z)
+                inplane_coords = cart2polar(s, z)
+
+                # Find the r and theta vectors for each element and construct
+                # lagrange interpolation matrix
+
+                # Expand coords of element GLL points to unique inplane points
+                logging.info('Expand element coords.')
+                points_of_interest = self.element_groups_info[group]['metadata']['list_element_coords'][elements][:,[0,1,2,3,6],:]
+                final_shape = (np.sum(np.array(in_element_repetitions)),) +  points_of_interest.shape[1:]
+                expanded_points_of_interest = np.empty(final_shape)
+                expanded_index = 0
+                for index, repetitions in enumerate(in_element_repetitions):
+                    if repetitions == 1:
+                        expanded_points_of_interest[expanded_index] = points_of_interest[index]
+                        expanded_index += 1
                     else:
-                        final_shape = (np.sum(np.array(inplane_point_repetitions)),) + inplane_interpolated_data.shape[1:]
-                        expanded_interpolated_data = np.empty(final_shape)
-                        expanded_index = 0
-                        for index, repetitions in enumerate(inplane_point_repetitions):
-                            if repetitions == 1:
+                        for _ in range(repetitions):
+                            expanded_points_of_interest[expanded_index] = points_of_interest[index]
+                            expanded_index += 1
+                points_of_interest = expanded_points_of_interest
+                # remove the points of interest located in problematique elements
+                points_of_interest = np.delete(points_of_interest, map_of_problematique, axis=0)
+                good_inplane_coords = np.delete(inplane_coords, map_of_problematique, axis=0)
+                original_shape = points_of_interest.shape
+                points_of_interest = points_of_interest.reshape((points_of_interest.shape[0]*points_of_interest.shape[1], 2))
+                points_of_interest = cart2polar(points_of_interest[:,0], points_of_interest[:,1]).reshape(original_shape)
+                GLL_rads = points_of_interest[:,[0,1,2],[0]]
+                GLL_thetas = points_of_interest[:,[2,3,4],[1]]
+                
+                # Compute interpolation weights (LIM)
+                logging.info('Compute LIM')
+                lr = np.array([
+                    self._lagrange(good_inplane_coords[:,0], GLL_rads, i, lagrange_order) 
+                    for i in range(lagrange_order)]).transpose()
+                ltheta = np.array([
+                    self._lagrange(good_inplane_coords[:,1], GLL_thetas, i, lagrange_order) 
+                    for i in range(lagrange_order)]).transpose()
+                LIM = np.array([
+                    np.outer(ltheta_i, lr_i).flatten() 
+                    for ltheta_i, lr_i in zip(ltheta, lr)])
+
+                # Manually add back into LIM some improvised weights at the
+                # locations within map_of_problematique
+                if len(LIM) == 0:
+                    LIM = np.concatenate((LIM,np.array([0,0,0,0,1,0,0,0,0])), axis=0)
+                    LIM = LIM.reshape((1,len(LIM)))
+                    for location in map_of_problematique[1:]:
+                        LIM = np.insert(LIM, location, np.array([0,0,0,0,1,0,0,0,0]), axis=0)
+                else:
+                    for location in map_of_problematique:
+                        LIM = np.insert(LIM, location, np.array([0,0,0,0,1,0,0,0,0]), axis=0)
+                
+                # Interpolate
+                logging.info('Inplane interpolate')
+                inplane_interpolated_data = np.sum(expanded_data * LIM[:,np.newaxis,:,np.newaxis,np.newaxis], axis=2)
+
+                # Add Fourier Coefficients
+                inplane_point_repetitions = []
+                for inplane_points in main_dict[file][nag].values():
+                    for azimuthal_points in inplane_points.values():
+                        inplane_point_repetitions.append(len(azimuthal_points))                        
+                
+                # expand to point level
+                logging.info('Expanding data to points')
+                if max(inplane_point_repetitions) == 1:
+                    expanded_interpolated_data = inplane_interpolated_data
+                else:
+                    final_shape = (np.sum(np.array(inplane_point_repetitions)),) + inplane_interpolated_data.shape[1:]
+                    expanded_interpolated_data = np.empty(final_shape)
+                    expanded_index = 0
+                    for index, repetitions in enumerate(inplane_point_repetitions):
+                        if repetitions == 1:
+                            expanded_interpolated_data[expanded_index] = inplane_interpolated_data[index]
+                            expanded_index += 1
+                        else:
+                            for _ in range(repetitions):
                                 expanded_interpolated_data[expanded_index] = inplane_interpolated_data[index]
                                 expanded_index += 1
-                            else:
-                                for _ in range(repetitions):
-                                    expanded_interpolated_data[expanded_index] = inplane_interpolated_data[index]
-                                    expanded_index += 1
 
-                    # Fourier interpolation
-                    logging.info('Fourier interpolation')
-                    # Get the phis
-                    phi = []
-                    name_list = []
-                    for sub_dict in main_dict[file][nag].values():
-                        for sub_sub_dict in sub_dict.values():
-                            for key in sub_sub_dict.keys():
-                                name_list.append(key)
-                                phi.append(sub_sub_dict[key][-1])
-                    phi = np.array(phi)
-                    # Set complex type
-                    complex_type = expanded_interpolated_data.dtype if np.iscomplexobj(expanded_interpolated_data) else np.complex128
-                    max_fourier_order = nag // 2
-                    result = expanded_interpolated_data[:,0,:,:].copy()
+                # Fourier interpolation
+                logging.info('Fourier interpolation')
+                # Get the phis
+                phi = []
+                name_list = []
+                for sub_dict in main_dict[file][nag].values():
+                    for sub_sub_dict in sub_dict.values():
+                        for key in sub_sub_dict.keys():
+                            name_list.append(key)
+                            phi.append(sub_sub_dict[key][-1])
+                phi = np.array(phi)
+                # Set complex type
+                complex_type = expanded_interpolated_data.dtype if np.iscomplexobj(expanded_interpolated_data) else np.complex128
+                max_fourier_order = nag // 2
+                result = expanded_interpolated_data[:,0,:,:].copy()
 
-                    for order in range(1, max_fourier_order + 1):
-                        coeff = np.zeros(result.shape, dtype=complex_type)
-                        # Real part
-                        coeff.real = expanded_interpolated_data[:,order * 2 - 1,:,:]
-                        # Complex part of Fourier coefficients
-                        if order * 2 < nag:  # Check for Nyquist
-                            coeff.imag += expanded_interpolated_data[:,order * 2,:,:]
-                        result += (2.0 * np.exp(1j * order * phi)[:, np.newaxis, np.newaxis] * coeff).real
+                for order in range(1, max_fourier_order + 1):
+                    coeff = np.zeros(result.shape, dtype=complex_type)
+                    # Real part
+                    coeff.real = expanded_interpolated_data[:,order * 2 - 1,:,:]
+                    # Complex part of Fourier coefficients
+                    if order * 2 < nag:  # Check for Nyquist
+                        coeff.imag += expanded_interpolated_data[:,order * 2,:,:]
+                    result += (2.0 * np.exp(1j * order * phi)[:, np.newaxis, np.newaxis] * coeff).real
 
-                    # Place the result in the final result ndarray
-                    final_result[name_list,:,:] = result
+                # Place the result in the final result ndarray
+                final_result[name_list,:,:] = result
 
-                    pbar.update(1)
+                pbar.update(len(name_list))
         return final_result
     
     

@@ -9,30 +9,45 @@ import shutil
 import os 
 import numpy as np
 import yaml
+from abc import ABC, abstractmethod
+from scipy import integrate 
 
 
-""" class XObjectiveFunction:
-    def __init__(self, forward_data:ElementOutput, backward_data:ElementOutput=None):
-        self.forward_data = forward_data
-        self.backward_data = backward_data """
-
-
-
-class L2ObjectiveFunction:
-    def __init__(self, forward_data:ElementOutput, real_data:ObspyfiedOutput, backward_data:ElementOutput=None):
+class ObjectiveFunction(ABC):
+    def __init__(self, forward_data:ElementOutput, 
+                 real_data:ObspyfiedOutput, 
+                 backward_data:ElementOutput=None):
         self.forward_data = forward_data
         self.real_data = real_data
         self.backward_data = backward_data
 
-        # Source data
-        self.source_depth = forward_data.source_depth
-        self.source_latitude = forward_data.source_lat
-        self.source_longitude = forward_data.source_lon
-
         # Kernel
         self.derivative = None
 
-    
+
+    @abstractmethod
+    def compute_backward_field(self, station: str, network: str, 
+                               location: str, real_channels: str,
+                               window_left: float, window_right: float):
+        pass
+
+    @abstractmethod
+    def _compute_adjoint_STF(self, station: str, network: str, 
+                               location: str, real_channels: str,
+                               window_left: float, window_right: float):
+        pass
+
+    def _save_STF(self, directory, master_time, STF, channel_type):
+        for channel in channel_type:
+            # Save results to a text file
+            filename = os.path.join(directory, channel + '.txt')
+            # Combine time and data arrays column-wise
+            combined_data = np.column_stack((master_time, STF[channel]))
+            print(STF[channel])
+            # Save the combined data to a text file
+            np.savetxt(filename, combined_data, fmt='%.16f', delimiter='\t')
+
+
     def initialize_derivaitves(self, backward_data: ElementOutput = None):
         # Check if the backward_data is known
         if self.backward_data is None and backward_data is None:
@@ -74,7 +89,117 @@ class L2ObjectiveFunction:
             print("Files copied successfully!")
         except Exception as e:
             print(f"An error occurred: {e}")
- 
+
+
+class XObjectiveFunction(ObjectiveFunction):
+    def __init__(self, forward_data:ElementOutput, 
+                 real_data:ObspyfiedOutput=None, 
+                 backward_data:ElementOutput=None):
+            super().__init__(forward_data, real_data, backward_data)
+
+
+    def compute_backward_field(self, station: str, network: str, 
+                               location: str, real_channels: str,
+                               window_left: float, window_right: float):
+        
+        # For the forward channels need to specify wether [UZ, UR, UT] or [UZ,
+        # UE, UN], etc which AxiSEM3D type was used for outputting the
+        # displacement. While for the real just put what is needed to select the
+        # same displacement channels via the select function from obspy, eg BH*
+        # if the data is in ZRT
+
+        #  Create the necessary directory structure and
+        # files
+        self._make_backward_directory()
+
+        # Compute and save adjoint source
+        self._compute_adjoint_STF(station, network, location, real_channels,
+                                  window_left, window_right)
+        
+        # Modify the inparam.source file 
+        input('Modify the inparam.source file manually then press enter.')
+
+        # Run the backward simulation
+        input('Run the backward simulation then press enter.')
+
+        # Save the backward data as property of the objective object
+        self.backward_data = ElementOutput(os.path.join(self._backward_directory, 'output/elements'))
+
+
+    def _compute_adjoint_STF(self, station: str, network: str, 
+                               location: str, real_channels: str,
+                               window_left: float, window_right: float):
+        # Compute cross-correlation (manual now)
+        tau = 5
+
+        # Load data
+        # put in station coords manually now
+        station_depth = 0
+        station_latitude = 0
+        station_longitude = 94
+        
+        # Put the station coords in geographic spherical [rad, lat, lon] in degrees
+        sta_rad = self.forward_data.Earth_Radius - station_depth
+        point = np.array([sta_rad, station_latitude, station_longitude])
+        # Get the forward data as a stream at that point
+        forward_data = self.forward_data.load_data(point, channels=['U'], in_deg=True)
+
+        # We again assume all elements have the same time axis
+        first_group = next(iter(self.forward_data.element_groups_info))
+        forward_time = self.forward_data.element_groups_info[first_group]['metadata']['data_time']
+        dt_forward = forward_time[1] - forward_time[0]
+        channel_type = self.forward_data.element_groups_info[first_group]['wavefields']['coordinate_frame']
+        
+        dfwdt = {}
+        fig, axs = plt.subplots(3, 1)
+        windowed_master_time, windowed_forward_data = window_data(forward_time, forward_data[0], 
+                                                                    window_left, window_right)
+        # Compute time derivative
+        dfwdt = np.diff(windowed_forward_data, axis=1) / (dt_forward)
+        differentiated_time_axis = windowed_master_time[0:-1] - dt_forward / 2
+        # Apply the t -> T-t transformation to the residue and multiply with -1
+        dfwdt = np.flip(np.array(dfwdt))
+        # Apply the t -> T-t transformation to the time 
+        transformed_windowed_master_time = np.flip(np.max(forward_time) - differentiated_time_axis)
+
+        # Compute denominator
+        mag = np.sqrt(integrate.simpson(np.sum(dfwdt*dfwdt,axis=0), dx=dt_forward))
+
+        STF = {}
+        for index, channel in enumerate(channel_type):
+            # Scale velocity
+            STF[channel] = tau * dfwdt[index] / mag
+            axs[index].plot(transformed_windowed_master_time, STF[channel])
+            axs[index].text(1.05, 0.5, index, transform=axs[index].transAxes)
+         
+        plt.show()
+
+        ans = input('Save the STF? (y/n): ')
+        if ans == 'y':
+            # Save residue as STF.txt file ready to be given to AxiSEM3D
+            directory = os.path.join(self._backward_directory, 'input', 'STF')
+            if not os.path.exists(directory):
+                os.makedirs(directory)
+                print("Directory created:", directory)
+                self._save_STF(directory, transformed_windowed_master_time, STF, channel_type)
+            else:
+                print("Directory already exists:", directory)
+                ans = input('Overwrite the existing data [y/n]: ')
+                if ans == 'y':
+                    self._save_STF(directory, transformed_windowed_master_time, STF, channel_type)
+
+
+class L2ObjectiveFunction(ObjectiveFunction):
+    def __init__(self, forward_data:ElementOutput, 
+                 real_data:ObspyfiedOutput=None, 
+                 backward_data:ElementOutput=None):
+        super().__init__(forward_data, real_data, backward_data)
+
+        # Source data
+        self.source_depth = forward_data.source_depth
+        self.source_latitude = forward_data.source_lat
+        self.source_longitude = forward_data.source_lon
+
 
     def compute_backward_field(self, station: str, network: str, location: str, real_channels: str,
                                window_left: float, window_right: float):
@@ -242,17 +367,6 @@ class L2ObjectiveFunction:
                 ans = input('Overwrite the existing data [y/n]: ')
                 if ans == 'y':
                     self._save_STF(directory, transformed_windowed_master_time, STF, channel_type)
-
-
-    def _save_STF(self, directory, master_time, STF, channel_type):
-        for channel in channel_type:
-            # Save results to a text file
-            filename = os.path.join(directory, channel + '.txt')
-            # Combine time and data arrays column-wise
-            combined_data = np.column_stack((master_time, STF[channel]))
-            print(STF[channel])
-            # Save the combined data to a text file
-            np.savetxt(filename, combined_data, fmt='%.16f', delimiter='\t')
 
 
     def evaluate_objective_function(self, network: str, station: str, location: str,

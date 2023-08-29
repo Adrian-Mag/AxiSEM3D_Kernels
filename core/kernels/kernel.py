@@ -156,41 +156,57 @@ class Kernel():
 
     def evaluate_rho(self, points: np.ndarray) -> np.ndarray:
         # K_rho = K_rho_0 + (vp^2-2vs^2)K_lambda_0 + vs^2 K_mu_0
-        if self.forward_data.base_model['type'] == 'axisem3d':
-            radii = np.array(self.forward_data.base_model['R'])
-        else:
-            radii = np.array(self.forward_data.base_model['DATA']['radius'])
+        radii = np.array(self.forward_data.base_model['DATA']['radius'])
         is_increasing = radii[0] < radii[1]
         if is_increasing:
-            indices = np.searchsorted(radii, points[:,0])
+            index = np.searchsorted(radii, points[:,0])
         else:
-            indices = np.searchsorted(-radii, -points[:,0])
+            index = np.searchsorted(-radii, -points[:,0])
+        # eliminated points outside of the domain
+        mask = np.logical_or(index > 0, index < len(radii))
+        filtered_index = index[mask]
 
-        if self.forward_data.base_model['type'] == 'axisem3d':
-            vp = self.forward_data.base_model['VP'][indices - 1]
-            vs = self.forward_data.base_model['VS'][indices - 1]
-        else:
-            vp = np.array(self.forward_data.base_model['DATA']['vp'])[indices - 1]
-            vs = np.array(self.forward_data.base_model['DATA']['vs'])[indices - 1]
+        rho = np.array(self.forward_data.base_model['DATA']['rho'])[filtered_index - 1]
+        vp = np.array(self.forward_data.base_model['DATA']['vp'])[filtered_index - 1]
+        vs = np.array(self.forward_data.base_model['DATA']['vs'])[filtered_index - 1]
 
         return self.evaluate_rho_0(points) + (vp*vp - 2*vs*vs)*self.evaluate_lambda(points) + vs*vs*self.evaluate_mu(points)
 
 
-    def evaluate_vs(self, point):
-        # K_vs = 2*rho*vs*(K_mu_0 - 2*K_lambda_0)
-        radii = np.array(self.forward_data.base_model['R'])
+    def evaluate_vp(self, points):
+        # K_vs = 2*rho*vp*K_lambda_0
+        radii = np.array(self.forward_data.base_model['DATA']['radius'])
         is_increasing = radii[0] < radii[1]
         if is_increasing:
-            index = np.searchsorted(radii, point[0])
+            index = np.searchsorted(radii, points[:,0])
         else:
-            index = np.searchsorted(-radii, -point[0])
-        if index == 0 or index >= len(radii):
-            print('Point outside of base model domain')
-            return 1
+            index = np.searchsorted(-radii, -points[:,0])
+        # eliminated points outside of the domain
+        mask = np.logical_or(index > 0, index < len(radii))
+        filtered_index = index[mask]
+
+        rho = np.array(self.forward_data.base_model['DATA']['rho'])[filtered_index - 1]
+        vp = np.array(self.forward_data.base_model['DATA']['vp'])[filtered_index - 1]
+
+        return 2 * rho * vp * self.evaluate_lambda(points)
+
+
+    def evaluate_vs(self, points):
+        # K_vs = 2*rho*vs*(K_mu_0 - 2*K_lambda_0)
+        radii = np.array(self.forward_data.base_model['DATA']['radius'])
+        is_increasing = radii[0] < radii[1]
+        if is_increasing:
+            index = np.searchsorted(radii, points[:,0])
         else:
-            rho = self.forward_data.base_model['RHO'][index - 1]
-            vs = self.forward_data.base_model['VS'][index - 1]
-        return 2 * rho * vs * (self.evaluate_mu_0(point) - 2*self.evaluate_mu_0(point))
+            index = np.searchsorted(-radii, -points[:,0])
+        # eliminated points outside of the domain
+        mask = np.logical_or(index > 0, index < len(radii))
+        filtered_index = index[mask]
+
+        rho = np.array(self.forward_data.base_model['DATA']['rho'])[filtered_index - 1]
+        vs = np.array(self.forward_data.base_model['DATA']['vs'])[filtered_index - 1]
+    
+        return 2 * rho * vs * (self.evaluate_mu(points) - 2*self.evaluate_lambda(points))
 
 
     def evaluate_geometric(self, points: np.ndarray, radius: float):
@@ -231,8 +247,8 @@ class Kernel():
     def evaluate_on_sphere(self, resolution: int):
         # Compute points on spherical mesh
         # Define the lat lon grid (must match data file)
-        lat = np.arange(-20, 20.01, 1)*np.pi/180
-        lon = np.arange(-0, 50.01, 1)*np.pi/180
+        lat = np.arange(-90, 90.01, 2)*np.pi/180
+        lon = np.arange(-180, 180.01, 2)*np.pi/180
         LON, LAT = np.meshgrid(lon, lat)
         nlat = len(lat)
         nlon = len(lon)
@@ -240,8 +256,8 @@ class Kernel():
 
         points = np.dstack((LAT,LON)).reshape(-1,2)
 
-        kernel = self.evaluate_K_dv(points, radius=5701000).reshape(LON.shape)
-
+        kernel = (self.evaluate_K_dv(points, radius=5701000)).reshape(LON.shape)
+        print(np.max(kernel))
         # Construct CMB and Surface matrices
         R_disc = np.ones(np.shape(LON))
 
@@ -249,22 +265,23 @@ class Kernel():
         Y_disc = R_disc * np.cos(LAT) * np.sin(LON)
         Z_disc = R_disc * np.sin(LAT)
 
-        # plot
+        """ # plot
         plt.imshow(kernel)
-        plt.show()
+        plt.show() """
         # create colormap
-        """ N = len(kernel.flatten()) # Number of points
+        N = len(kernel.flatten()) # Number of points
         scalars = np.arange(N).reshape(kernel.shape[0], kernel.shape[1]) # Key point: set an integer for each point
 
         kernel_neg = kernel.copy()
         kernel_neg[kernel_neg>0] = 0 # for blue
         kernel_pos = kernel.copy()
-        kernel_neg[kernel_pos<0] = 0 # for red
+        kernel_pos[kernel_pos<0] = 0 # for red
         # Define color table (including alpha), which must be uint8 and [0,255]
+        max_range = 0.1*np.abs(kernel).max()
         colors = np.ones((N, 4))
-        colors[:,0] = (1 - kernel_pos.flatten() / np.abs(kernel).max()) * 255 # red
-        colors[:,1] = (1 - np.abs(kernel).flatten() / np.abs(kernel).max()) * 255 # green
-        colors[:,2] = (1 + kernel_neg.flatten() / np.abs(kernel).max()) * 255 # blue
+        colors[:,0] = (1 - kernel_pos.flatten() / max_range) * 255 # red
+        colors[:,1] = (1 - np.abs(kernel).flatten() / max_range) * 255 # green
+        colors[:,2] = (1 + kernel_neg.flatten() / max_range) * 255 # blue
         colors = colors.astype(np.uint8)
         colors[:,-1] = 255 # No transparency
         
@@ -274,7 +291,7 @@ class Kernel():
         # Set look-up table and redraw
         kernel_surface.module_manager.scalar_lut_manager.lut.table = colors  
 
-        mlab.show()  """ 
+        mlab.show()     
 
 
     def evaluate_K_dv(self, points: np.ndarray, radius: float) -> np.ndarray:
@@ -294,18 +311,20 @@ class Kernel():
         # Compute the volumetric-geometric kernel
         if disc_type == 'SS':
             K_dv_upper = rho_upper * self.evaluate_rho_0(points=upper_points) + \
-                    3 * rho_upper * (vs_upper**2 + 2*vp_upper**2) * self.evaluate_lambda(points=upper_points) + \
-                    3 * rho_upper * vs_upper**2 * self.evaluate_mu(points=upper_points)
+                    rho_upper * (vp_upper**2 - 2*vs_upper**2) * self.evaluate_lambda(points=upper_points) + \
+                    rho_upper * vs_upper**2 * self.evaluate_mu(points=upper_points)
             K_dv_lower = rho_lower * self.evaluate_rho_0(points=lower_points) + \
-                    3 * rho_lower * (vs_lower**2 + 2*vp_lower**2) * self.evaluate_lambda(points=lower_points) + \
-                    3 * rho_lower * vs_lower**2 * self.evaluate_mu(points=lower_points)     
+                    rho_lower * (vp_lower**2 - 2*vs_lower**2) * self.evaluate_lambda(points=lower_points) + \
+                    rho_lower * vs_lower**2 * self.evaluate_mu(points=lower_points)     
         elif disc_type == 'FS':
+            # wrong
             K_dv_upper = rho_upper * self.evaluate_rho_0(points=upper_points) + \
                     3 * rho_upper * (vs_upper**2 + 2*vp_upper**2) * self.evaluate_lambda(points=upper_points) + \
                     3 * rho_upper * vs_upper**2 * self.evaluate_mu(points=upper_points)
             K_dv_lower = rho_lower * self.evaluate_rho_0(points=lower_points) + \
                     6 * rho_lower * vp_lower**2 * self.evaluate_lambda(points=lower_points)
         elif disc_type == 'SF':
+            # wrong
             K_dv_upper = rho_upper * self.evaluate_rho_0(points=upper_points) + \
                     6 * rho_upper * vp_upper**2 * self.evaluate_lambda(points=upper_points)
             K_dv_lower = rho_lower * self.evaluate_rho_0(points=lower_points) + \
@@ -315,21 +334,63 @@ class Kernel():
         return K_dv_upper - K_dv_lower
 
 
-    def evaluate_vp(self, point):
-        # K_vs = 2*rho*vp*K_lambda_0
-        radii = np.array(self.forward_data.base_model['R'])
-        is_increasing = radii[0] < radii[1]
-        if is_increasing:
-            index = np.searchsorted(radii, point[0])
-        else:
-            index = np.searchsorted(-radii, -point[0])
-        if index == 0 or index >= len(radii):
-            print('Point outside of base model domain')
-            return 1
-        else:
-            rho = self.forward_data.base_model['RHO'][index - 1]
-            vp = self.forward_data.base_model['VP'][index - 1]
-        return 2 * rho * vp * self.evaluate_lambda_0(point)
+    def evaluate_K_dn(self, points: np.ndarray, radius: float) -> np.ndarray:
+        # Get limit points
+        upper_points, lower_points = self._form_limit_points(points, radius)
+
+        # get forwards and backward waveforms at these points an flip andjoints in time
+        Gr_forward_upper = np.nan_to_num(self.forward_data.load_data(upper_points, 
+                                        channels=['GRR', 'GRZ', 'GRT'], in_deg=False))
+        Gr_backward_upper = np.nan_to_num(self.backward_data.load_data(upper_points, 
+                                        channels=['GRR', 'GRZ', 'GRT'], in_deg=False))
+        Tr_forward_upper = np.nan_to_num(self.forward_data.load_data(upper_points, 
+                                        channels=['SRR', 'SZR', 'SRT'], in_deg=False))
+        Tr_backward_upper = np.nan_to_num(self.backward_data.load_data(upper_points, 
+                                        channels=['SRR', 'SZR', 'SRT'], in_deg=False))
+        Gr_forward_lower = np.nan_to_num(self.forward_data.load_data(lower_points, 
+                                        channels=['GRR', 'GRZ', 'GRT'], in_deg=False))
+        Gr_backward_lower = np.nan_to_num(self.backward_data.load_data(lower_points, 
+                                        channels=['GRR', 'GRZ', 'GRT'], in_deg=False))
+        Tr_forward_lower = np.nan_to_num(self.forward_data.load_data(lower_points, 
+                                        channels=['SRR', 'SZR', 'SRT'], in_deg=False))
+        Tr_backward_lower = np.nan_to_num(self.backward_data.load_data(lower_points, 
+                                        channels=['SRR', 'SZR', 'SRT'], in_deg=False))
+
+        # flip adjoints in time
+        Gr_backward_upper = np.flip(Gr_backward_upper, axis=2)
+        Gr_backward_lower = np.flip(Gr_backward_lower, axis=2)
+        Tr_backward_upper = np.flip(Tr_backward_upper, axis=2)
+        Tr_backward_lower = np.flip(Tr_backward_lower, axis=2)
+
+        # Project on master time
+        Gr_forward_upper_interp = np.empty(Gr_forward_upper.shape[:-1] + (len(self.master_time),))
+        Gr_backward_upper_interp = np.empty(Gr_backward_upper.shape[:-1] + (len(self.master_time),))
+        Tr_forward_upper_interp = np.empty(Tr_forward_upper.shape[:-1] + (len(self.master_time),))
+        Tr_backward_upper_interp = np.empty(Tr_backward_upper.shape[:-1] + (len(self.master_time),))
+        Gr_forward_lower_interp = np.empty(Gr_forward_lower.shape[:-1] + (len(self.master_time),))
+        Gr_backward_lower_interp = np.empty(Gr_backward_lower.shape[:-1] + (len(self.master_time),))
+        Tr_forward_lower_interp = np.empty(Tr_forward_lower.shape[:-1] + (len(self.master_time),))
+        Tr_backward_lower_interp = np.empty(Tr_backward_lower.shape[:-1] + (len(self.master_time),))
+
+        for i in range(len(points)):
+            for j in range(3):
+                Gr_forward_upper_interp[i,j] = np.interp(self.master_time, self.fw_time, Gr_forward_upper[i,j])
+                Gr_backward_upper_interp[i,j] = np.interp(self.master_time, self.bw_time, Gr_backward_upper[i,j])
+                Tr_forward_upper_interp[i,j] = np.interp(self.master_time, self.fw_time, Tr_forward_upper[i,j])
+                Tr_backward_upper_interp[i,j] = np.interp(self.master_time, self.bw_time, Tr_backward_upper[i,j])
+                Gr_forward_lower_interp[i,j] = np.interp(self.master_time, self.fw_time, Gr_forward_lower[i,j])
+                Gr_backward_lower_interp[i,j] = np.interp(self.master_time, self.bw_time, Gr_backward_lower[i,j])
+                Tr_forward_lower_interp[i,j] = np.interp(self.master_time, self.fw_time, Tr_forward_lower[i,j])
+                Tr_backward_lower_interp[i,j] = np.interp(self.master_time, self.bw_time, Tr_backward_lower[i,j])
+
+        # Compute the integrand
+        integrand = np.sum(Tr_forward_upper_interp * Gr_backward_upper_interp, axis=1) + \
+                    np.sum(Tr_backward_upper_interp * Gr_forward_upper_interp, axis=1) - \
+                    np.sum(Tr_forward_lower_interp * Gr_backward_lower_interp, axis=1) - \
+                    np.sum(Tr_backward_lower_interp * Gr_forward_lower_interp, axis=1)
+        
+        return integrate.simpson(integrand, 
+                                 dx = (self.master_time[1] - self.master_time[0]))
 
 
     def evaluate_on_slice(self, source_location: list=None, station_location: list=None,
@@ -358,7 +419,7 @@ class Kernel():
         
         # Compute sensitivity values on the slice (Slice frame)
         inplane_sensitivity = np.full((mesh.resolution, mesh.resolution), fill_value=np.NaN)
-        data = self.evaluate_lambda(mesh.points)
+        data = self.evaluate_vp(mesh.points)
         # Distribute the values in the matrix that will be plotted
         index = 0
         for [index1, index2], _ in zip(mesh.indices, mesh.points):
