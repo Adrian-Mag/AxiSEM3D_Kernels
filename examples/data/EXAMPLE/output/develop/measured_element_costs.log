@@ -1,0 +1,12 @@
+Elements:
+FluidElement$Acoustic1D$5 9.08992e-07
+FluidElement$Acoustic1D$5$Axial 1.06067e-06
+SolidElement$Isotropic1D$5 3.57584e-06
+SolidElement$Isotropic1D$5$Axial 3.98816e-06
+SolidElement$TransverselyIsotropic1D$5 4.05616e-06
+SolidElement$TransverselyIsotropic1D$5$Axial 4.44768e-06
+
+GLL points:
+FluidPoint$Mass1D$5 1.97591e-08
+SolidPoint$Mass1D$5 2.13437e-08
+SolidPoint$Mass1D$5+FluidPoint$Mass1D$5 4.11955e-08

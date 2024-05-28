@@ -69,8 +69,8 @@ class StationOutput(AxiSEM3DOutput):
         rank_list = pd.read_csv(
             os.path.join(self.path_to_station_output, 'rank_station.info'),
             sep=' ',
-            header=None,
-            names=['MPI_RANK', 'STATION_KEY', 'STATION_INDEX_IN_RANK']
+            header=0,
+            names=['MPI_RANK', 'STATION_KEY', 'STATION_INDEX_IN_RANK'],
         )
         return rank_list
 
@@ -95,6 +95,8 @@ class StationOutput(AxiSEM3DOutput):
         station_key = network + '.' + station_name
         # Find the file and location within the file of the station
         row = self._rank_list[self._rank_list['STATION_KEY'] == station_key]
+        if row.empty:
+            raise ValueError('The station ' + station_key + ' does not exist.')
         rank_index = row.values.tolist()[0][0]
         in_file_index = row.values.tolist()[0][2]
         filename = 'axisem3d_synthetics.nc.rank' + str(rank_index)
@@ -339,13 +341,14 @@ class StationOutput(AxiSEM3DOutput):
         # Open station file
         stations = (pd.read_csv(self._stations_file_path,
                     delim_whitespace=True,
-                    header=0,
+                    header=1,
                     names=["name",
                            "network",
                            "latitude",
                            "longitude",
                            "useless",
-                           "depth"]))
+                           "depth"],
+                    comment='#'))
 
         # Iterate over all stations in the stations file
         for _, station in stations.iterrows():
