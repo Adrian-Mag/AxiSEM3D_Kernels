@@ -1,0 +1,49 @@
+<?xml version='1.0' encoding='utf-8'?>
+<q:quakeml xmlns="http://quakeml.org/xmlns/bed/1.2" xmlns:q="http://quakeml.org/xmlns/quakeml/1.2">
+  <eventParameters publicID="smi:local/520ebf29-5a2e-4830-889d-91b327314268">
+    <event publicID="smi:local/f8c17fc3-2601-4198-a620-a56b78490eb8">
+      <origin publicID="smi:local/03d00aa4-67c6-42a0-8036-3e1615590193">
+        <time>
+          <value>1970-01-01T00:00:00.000000Z</value>
+        </time>
+        <latitude>
+          <value>0.0</value>
+        </latitude>
+        <longitude>
+          <value>0.0</value>
+        </longitude>
+        <depth>
+          <value>20000.0</value>
+        </depth>
+        <depthType>operator assigned</depthType>
+        <region>OFF S. COAST OF NORTHWEST AFRICA</region>
+        <evaluationMode>manual</evaluationMode>
+        <evaluationStatus>preliminary</evaluationStatus>
+      </origin>
+      <focalMechanism publicID="smi:local/afae6599-13c8-4e7e-a0ea-a7a99f023d31">
+        <momentTensor publicID="smi:local/19e5c9a4-f8cb-4059-a222-1507efe704fe">
+          <tensor>
+            <Mrr>
+              <value>-1e+21</value>
+            </Mrr>
+            <Mtt>
+              <value>1e+21</value>
+            </Mtt>
+            <Mpp>
+              <value>-1e+21</value>
+            </Mpp>
+            <Mrt>
+              <value>0.0</value>
+            </Mrt>
+            <Mrp>
+              <value>0.0</value>
+            </Mrp>
+            <Mtp>
+              <value>0.0</value>
+            </Mtp>
+          </tensor>
+        </momentTensor>
+      </focalMechanism>
+    </event>
+  </eventParameters>
+</q:quakeml>

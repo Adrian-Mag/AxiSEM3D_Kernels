@@ -1,0 +1,8 @@
+[flake8]
+
+exclude=
+    .gitignore
+    .LICENSE
+    .README.md
+    setup.py
+ignore=F401

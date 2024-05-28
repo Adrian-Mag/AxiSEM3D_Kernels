@@ -1,20 +1,23 @@
 from setuptools import setup, find_packages
 
-with open('requirements.txt') as f:
-    requirements = f.read().splitlines()
-
-install_requires = []
-for requirement in requirements:
-    if not requirement.startswith('#') and not requirement.startswith('_'):
-        package_name = requirement.split('=')[0]
-        install_requires.append(package_name)
+# Load the contents of your README file
+with open('README.md', 'r') as f:
+    long_description = f.read()
 
 setup(
-    name='axisem3d_output',
-    version='1.0.0',
+    name='axikernels',
+    version='0.1',
     description='A Python package for handling Axisem3D output',
     author='Marin Adrian Mag',
     author_email='marin.mag@stx.ox.ac.uk',
-    packages=find_packages(),
-    install_requires=install_requires,
+    packages=find_packages(exclude=['tests*']),
+    package_data={
+        'axikernels': ['examples/data/*'],
+    },
+    classifiers=[
+        'Programming Language :: Python :: 3',
+        'License :: OSI Approved :: MIT License',
+        'Operating System :: OS Independent',
+    ],
+    python_requires='>=3.6',
 )

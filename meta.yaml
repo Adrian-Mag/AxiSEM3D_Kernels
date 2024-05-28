@@ -1,41 +1,22 @@
 package:
-  name: axisem3d_output
-  version: 1.0.0
+  name: axikernels
+  version: 0.1
 
 source:
-  # Specify the source code location
-  path: ../
-
-build:
-  # Specify the build requirements
-  number: 0
-  script: python -m pip install --no-deps --ignore-installed .
+  path: .
 
 requirements:
-  # Specify the runtime requirements
-  host:
-    - pip
+  build:
     - python
+    - setuptools
   run:
     - python
 
 about:
-  # Provide additional information about your package
-  home: https://github.com/your_username/axisem3d_output
+  home: https://github.com/Adrian-Mag/AxiSEM3D_Kernels.git
   license: MIT
-  summary: A Python package for handling Axisem3D output
-  description: |
-    A Python package for handling and analyzing output data from the Axisem3D software.
-  final: true
-
-test:
-  # Specify the test commands
-  imports:
-    - axisem3d_output
-  commands:
-    - python -m pytest
+  summary: 'A Python package for handling Axisem3D output'
 
 extra:
-  # Specify any extra features or dependencies
-  # ...
-
+  recipe-maintainers:
+    - Adrian Mag
