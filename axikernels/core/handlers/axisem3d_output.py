@@ -53,7 +53,7 @@ class AxiSEM3DOutput:
         # We give a name to the simulation
         self.simulation_name = os.path.basename(self.path_to_simulation)
         # Info about the source
-        self._catalogue = self._find_catalogue()[0]
+        self._stored_catalogue = self._find_catalogue()[0]
         # Info about model (currently only for global models)
         if path_to_base_model is None:
             # We search for a bm file in the input folder
@@ -64,7 +64,7 @@ class AxiSEM3DOutput:
             path_to_base_model = bm_files[0]
         # After finding the base model, we read and save its contents (they
         # must be easily accessible from this class for later)
-        self.base_model = self.read_model_file(path_to_base_model)
+        self.base_model = self._read_model_file(path_to_base_model)
         # Now we determine the Earth radius. We save it as an attribute of the
         # class rather than as a key in the base_model dictionary.
         if 'axisem3d' in os.path.basename(path_to_base_model):
@@ -79,7 +79,7 @@ class AxiSEM3DOutput:
             else:
                 pass
 
-    def read_model_file(self, file_path):
+    def _read_model_file(self, file_path):
         """
         Read the model file.
 
@@ -226,7 +226,7 @@ class AxiSEM3DOutput:
             obspy.core.event.Catalog: Catalog object representing the
             simulation catalogue.
         """
-        if self._catalogue is None:
+        if self._stored_catalogue is None:
             with open(self.inparam_source, 'r') as file:
                 source_yaml = yaml.load(file, Loader=yaml.FullLoader)
                 cat = Catalog()
@@ -283,7 +283,7 @@ class AxiSEM3DOutput:
                         event.focal_mechanisms = [focal_mechanisms]
             cat.write(self.path_to_simulation + '/input/' +
                       self.simulation_name + '_cat.xml', format='QUAKEML')
-            self._catalogue = cat
+            self._stored_catalogue = cat
             return cat
         else:
-            return self._catalogue
+            return self._stored_catalogue

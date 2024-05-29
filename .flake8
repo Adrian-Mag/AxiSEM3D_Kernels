@@ -6,3 +6,4 @@ exclude=
     .README.md
     setup.py
 ignore=F401
+ignore=W504

@@ -1,11 +1,11 @@
 from obspy import read, read_events, read_inventory
 import fnmatch
-import os 
+import os
 import sys
 
 
 class ObspyfiedOutput:
-    def __init__(self, obspyfied_path:str = None, mseed_file_path:str = None, 
+    def __init__(self, obspyfied_path:str = None, mseed_file_path:str = None,
                  inv_file_path:str = None, cat_file_path:str = None):
         # One may give a path to the obspyfied folder, in which case the mseed,
         # inv, and cat files will be searched for automatically, or one can
@@ -15,24 +15,23 @@ class ObspyfiedOutput:
             self.stream = read(mseed_file_path)
             self.cat = read_events(cat_file_path)
             self.inv = read_inventory(inv_file_path)
-        elif mseed_file_path is not None and inv_file_path is not None and cat_file_path is not None:
+        elif (mseed_file_path is not None and
+              inv_file_path is not None and
+              cat_file_path is not None):
             self.stream = read(mseed_file_path)
             self.cat = read_events(cat_file_path)
             self.inv = read_inventory(inv_file_path)
         else:
-            raise ValueError('Must provide either the path to the obspyfied folder, \
-                             or the mseed file, inv file and cat file manually')
+            raise ValueError('Must provide either the path to the obspyfied folder, or the mseed file, inv file and cat file manually')
 
         self.mseed_file_name = mseed_file_path.split('/')[-1]
         self.inv_file_name = inv_file_path.split('/')[-1]
 
-
-    def _find_obspyfied_files(self, obspyfied_path:str = None) -> list:
+    def _find_obspyfied_files(self, obspyfied_path: str = None) -> list:
         mseed_file_path = self._find_mseed_files(obspyfied_path)
         cat_file_path = self._find_cat_files(obspyfied_path)
         inv_file_path = self._find_inv_files(obspyfied_path)
         return [mseed_file_path, cat_file_path, inv_file_path]
-
 
     def _find_inv_files(self, obspyfied_path):
         inv_files = self.search_files(obspyfied_path, 'inv.xml')
@@ -46,7 +45,6 @@ class ObspyfiedOutput:
             inv_file_path = inv_files[0]
         return inv_file_path
 
-
     def _find_cat_files(self, obspyfied_path):
         cat_files = self.search_files(obspyfied_path, 'cat.xml')
         if len(cat_files) > 1:
@@ -58,7 +56,6 @@ class ObspyfiedOutput:
         else:
             cat_file_path = cat_files[0]
         return cat_file_path
-
 
     def _find_mseed_files(self, obspyfied_path):
         mseed_files = self.search_files(obspyfied_path, '.mseed')
@@ -72,7 +69,6 @@ class ObspyfiedOutput:
             mseed_file_path = mseed_files[0]
         return mseed_file_path
 
-
     def search_files(self, directory, keyword, include_subdirectories=False):
         """
         Search for files containing a specific keyword in a directory.
@@ -80,7 +76,8 @@ class ObspyfiedOutput:
         Args:
             directory (str): The directory to search in.
             keyword (str): The specific keyword to search for in file names.
-            include_subdirectories (bool, optional): Determines whether to include subdirectories in the search.
+            include_subdirectories (bool, optional): Determines whether to
+            include subdirectories in the search.
                 Defaults to True.
 
         Returns:
@@ -93,5 +90,5 @@ class ObspyfiedOutput:
             for filename in filenames:
                 if fnmatch.fnmatch(filename, '*' + keyword + '*'):
                     matches.append(os.path.join(root, filename))
-        
+
         return matches

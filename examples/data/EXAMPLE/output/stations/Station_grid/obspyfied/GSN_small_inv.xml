@@ -3,7 +3,7 @@
   <Source>Inventory from AxiSEM3D STATIONS file</Source>
   <Module>ObsPy 1.4.1</Module>
   <ModuleURI>https://www.obspy.org</ModuleURI>
-  <Created>2024-05-29T12:08:42.193930Z</Created>
+  <Created>2024-05-29T14:12:28.420477Z</Created>
   <Network code="II">
     <Station code="ABPO">
       <Latitude unit="DEGREES">-19.018</Latitude>

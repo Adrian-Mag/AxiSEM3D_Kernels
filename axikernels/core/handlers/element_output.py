@@ -1,42 +1,46 @@
-import matplotlib 
-matplotlib.use('tkagg')
+from .axisem3d_output import AxiSEM3DOutput
+from ...aux.coordinate_transforms import sph2cart, sph2cart_mpmath, cart2sph, cart2polar, cart2polar_mpmath, cart_geo2cart_src, cart2cyl, cart2cyl_mpmath
+from ...aux.mesher import Mesh, SliceMesh
+
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import os
 import numpy as np
 import xarray as xr
-import matplotlib 
-matplotlib.use('tkagg')
 import yaml
 import pandas as pd
-import xarray as xr
-import obspy 
+import obspy
 from obspy.core.inventory import Inventory, Network, Station, Channel
 from tqdm import tqdm
 import concurrent.futures
 import time
-import warnings 
+import warnings
 import plotly.graph_objects as go
 import logging
-logging.basicConfig(level=logging.CRITICAL, format='%(asctime)s - %(levelname)s - %(message)s')
 import sys
+import matplotlib
 
-from .axisem3d_output import AxiSEM3DOutput
-from ...aux.coordinate_transforms import sph2cart, sph2cart_mpmath, cart2sph, cart2polar, cart2polar_mpmath, cart_geo2cart_src, cart2cyl, cart2cyl_mpmath
-from ...aux.mesher import Mesh, SliceMesh
+logging.basicConfig(level=logging.CRITICAL,
+                    format='%(asctime)s - %(levelname)s - %(message)s')
+matplotlib.use('tkagg')
 
-#warnings.filterwarnings("error")
+# warnings.filterwarnings("error")
+
 
 class ElementOutput(AxiSEM3DOutput):
-    def __init__(self, path_to_element_output:str) -> None:
-        """Initializes the ElementOutput object for the given path to the element output directory.
+    def __init__(self, path_to_element_output: str) -> None:
+        """Initializes the ElementOutput object for the given path to the
+        element output directory.
 
         Args:
-            path_to_element_output (str): Path to the element output directory (called "elements").
+            path_to_element_output (str): Path to the element output directory
+            (called "elements").
 
         Attributes:
-            path_to_elements_output (str): Path to the element output directory.
-            element_groups_info (Dict[str, Any]): Information about all the element groups.
+            path_to_elements_output (str): Path to the element output
+            directory.
+            element_groups_info (Dict[str, Any]): Information about all the
+            element groups.
             source_lat (float): Latitude of the event located on the axis.
             source_lon (float): Longitude of the event located on the axis.
             source_depth (float): Depth of the event located on the axis.
@@ -50,17 +54,88 @@ class ElementOutput(AxiSEM3DOutput):
         self.element_groups_info = self._load_element_groups_info()
 
         # Get lat lon of the event located on the axis
-        self.source_lat, self.source_lon, self.source_depth = self._get_source_location()
+        self.source_lat, self.source_lon, self.source_depth = (
+            self._get_source_location()
+        )
 
         # Create the metadata for each element group
         self._create_element_metadata()
 
         # Compute rotation matrix
-        self.rotation_matrix = self._compute_rotation_matrix()
+        self._rotation_matrix = self._compute_rotation_matrix()
 
+    def _find_simulation_path(self, path: str):
+        """
+
+        Args:
+            path_to_station_file (str): path to station.txt file
+
+        Returns:
+            parent_directory
+        """
+        current_directory = os.path.abspath(path)
+        while True:
+            parent_directory = os.path.dirname(current_directory)
+            if 'output' in os.path.basename(current_directory):
+                return parent_directory
+            elif current_directory == parent_directory:
+                # Reached the root directory, "output" directory not found
+                return None
+            current_directory = parent_directory
+
+    def _load_element_groups_info(self) -> dict[str, any]:
+        """Load element groups information from the inparam output."""
+        element_groups_info = {}
+        with open(self.inparam_output, 'r') as file:
+            output_yaml = yaml.load(file, Loader=yaml.FullLoader)
+            for dictionary in output_yaml.get('list_of_element_groups', []):
+                element_group = next(iter(dictionary), None)
+                if element_group:
+                    element_groups_info[element_group] = (
+                        dictionary[element_group]
+                    )
+        return element_groups_info
+
+    def _get_source_location(self) -> tuple[float, float, float]:
+        """Get latitude, longitude, and depth of the event located on the
+        axis."""
+        with open(self.inparam_source, 'r') as file:
+            source_yaml = yaml.load(file, Loader=yaml.FullLoader)
+            source_name = list(
+                source_yaml.get('list_of_sources', [{}])[0].keys()
+            )[0]
+            # Assume a single point source
+            source = source_yaml.get('list_of_sources', [{}])[0].get(
+                source_name, {}
+            )
+            source_lat, source_lon = source.get('location', {}).get(
+                'latitude_longitude', [0.0, 0.0]
+            )
+            source_depth = float(source.get('location', {}).get('depth', 0.0))
+        return source_lat, source_lon, source_depth
 
     def _create_element_metadata(self) -> None:
-        """Create metadata for each element group."""
+        """
+        Populates the 'metadata' field for each element in
+        `element_groups_info`.
+
+        This method iterates over each element in `element_groups_info`, reads
+        its metadata using `_read_element_metadata`, and stores it in a
+        dictionary under the 'metadata' key. The metadata includes information
+        such as 'na_grid', 'data_time', 'list_element_na',
+        'list_element_coords', 'dict_list_element', 'files',
+        'elements_index_limits', and 'detailed_channels'.
+
+        Additionally, it replaces numerical indicators of coordinates in
+        'detailed_channels' with letters based on the coordinate system
+        specified in 'coordinate_frame'.
+
+        Note: This method modifies `element_groups_info` in-place.
+
+        Raises:
+            Any exceptions raised by `_read_element_metadata`.
+
+        """
         for element in self.element_groups_info:
             metadata = self._read_element_metadata(element)
             self.element_groups_info[element]['metadata'] = {
@@ -74,64 +149,68 @@ class ElementOutput(AxiSEM3DOutput):
                 'detailed_channels': metadata[7],
             }
 
-            # Replace the numerical indicators of coordinates with letters based on the coordinate system
-            coordinate_frame = self.element_groups_info[element]['wavefields']['coordinate_frame']
-            self.element_groups_info[element]['metadata']['detailed_channels'] = [
-                element.replace('1', coordinate_frame[0]).replace('2', coordinate_frame[1]).replace('3', coordinate_frame[2])
-                for element in self.element_groups_info[element]['metadata']['detailed_channels']
+            # Replace the numerical indicators of coordinates with letters
+            # based on the coordinate system
+            coordinate_frame = self.element_groups_info[element]['wavefields']['coordinate_frame'] # noqa
+            self.element_groups_info[element]['metadata']['detailed_channels'] = [ # noqa
+                element.replace('1', coordinate_frame[0])
+                       .replace('2', coordinate_frame[1])
+                       .replace('3', coordinate_frame[2])
+                for element in self.element_groups_info[element]['metadata']['detailed_channels'] # noqa
             ]
 
+    def _compute_rotation_matrix(self):
+        """Computes the rotation matrix that aligns the z axis with the source
+        axis
 
-    def _get_source_location(self) -> tuple[float, float, float]:
-        """Get latitude, longitude, and depth of the event located on the axis."""
-        with open(self.inparam_source, 'r') as file:
-            source_yaml = yaml.load(file, Loader=yaml.FullLoader)
-            source_name = list(source_yaml.get('list_of_sources', [{}])[0].keys())[0]
-            # Assume a single point source
-            source = source_yaml.get('list_of_sources', [{}])[0].get(source_name, {})
-            source_lat, source_lon = source.get('location', {}).get('latitude_longitude', [0.0, 0.0])
-            source_depth = float(source.get('location', {}).get('depth', 0.0))
-        return source_lat, source_lon, source_depth
-    
+        Returns:
+            np.ndarray: 3D rotation matrix
+        """
+        # get real earth coordinates of the sources
+        colatitude = np.pi/2 - np.deg2rad(self.source_lat)
+        longitude = np.deg2rad(self.source_lon)
 
-    def _load_element_groups_info(self) -> dict[str, any]:
-        """Load element groups information from the inparam output."""
-        element_groups_info = {}
-        with open(self.inparam_output, 'r') as file:
-            output_yaml = yaml.load(file, Loader=yaml.FullLoader)
-            for dictionary in output_yaml.get('list_of_element_groups', []):
-                element_group = next(iter(dictionary), None)
-                if element_group:
-                    element_groups_info[element_group] = dictionary[element_group]
-        return element_groups_info
-
+        # rotation matrix into the source frame (based on Tarje's PhD)
+        return np.asarray([[np.cos(colatitude) * np.cos(longitude),
+                            - np.sin(longitude),
+                            np.sin(colatitude) * np.cos(longitude)],
+                           [np.cos(colatitude) * np.sin(longitude),
+                            np.cos(longitude),
+                            np.sin(colatitude) * np.sin(longitude)],
+                           [-np.sin(colatitude),
+                            0,
+                            np.cos(colatitude)]])
 
     def plot_mesh(self, special_elements):
         problematic_elements = []
         for index, element in enumerate(self.list_element_coords):
-            s = element[:,0]
-            z = element[:,1]
-            points = cart2polar(s,z)
-            r = points[[0,1,2],0]
-            theta = points[[0,3,6],1]
+            s = element[:, 0]
+            z = element[:, 1]
+            points = cart2polar(s, z)
+            r = points[[0, 1, 2], 0]
+            theta = points[[0, 3, 6], 1]
             r_grid, theta_grid = np.meshgrid(r, theta)
-            expected_points = np.column_stack((r_grid.ravel(), theta_grid.ravel()))
+            expected_points = np.column_stack((r_grid.ravel(),
+                                               theta_grid.ravel()))
             if not np.allclose(points, expected_points, rtol=1e-6):
                 problematic_elements.append(index)
-        
-        all_points = self.list_element_coords[problematic_elements].reshape(-1,2)
+
+        all_points = self.list_element_coords[problematic_elements].reshape(-1, 2) # noqa
         unique_points = np.unique(all_points, axis=0)
         s_coords = unique_points[:, 0]
         z_coords = unique_points[:, 1]
-        
-        special_points = self.list_element_coords[special_elements].reshape(-1,2)
+
+        special_points = self.list_element_coords[special_elements].reshape(-1, 2) # noqa
         unique_points = np.unique(special_points, axis=0)
-        special_s_coords = unique_points[:,0]
-        special_z_coords = unique_points[:,1]
+        special_s_coords = unique_points[:, 0]
+        special_z_coords = unique_points[:, 1]
 
         fig = go.Figure()
-        fig.add_trace(go.Scatter(x=s_coords, y=z_coords, mode='markers', marker=dict(size=1, color='blue')))
-        fig.add_trace(go.Scatter(x=special_s_coords, y=special_z_coords, mode='markers', marker=dict(size=1, color='red')))
+        fig.add_trace(go.Scatter(x=s_coords, y=z_coords, mode='markers',
+                                 marker=dict(size=1, color='blue')))
+        fig.add_trace(go.Scatter(x=special_s_coords, y=special_z_coords,
+                                 mode='markers', marker=dict(size=1,
+                                                             color='red')))
         # Decrease the marker size
         marker_size = 5  # Change this value to adjust marker size
         fig.update_traces(marker=dict(size=marker_size))
@@ -143,22 +222,22 @@ class ElementOutput(AxiSEM3DOutput):
         )
         fig.show()
 
-
     def obspyfy(self, path_to_station_file: str):
         # Create obspyfy folder if not existent already
         obspyfy_path = self.path_to_elements_output + '/obspyfied'
         if not os.path.exists(obspyfy_path):
-            os.mkdir(obspyfy_path) 
+            os.mkdir(obspyfy_path)
         cat = self.catalogue
         cat.write(obspyfy_path + '/cat.xml', format='QUAKEML')
 
-        stations_file_name = os.path.basename(path_to_station_file).split('.')[0]
+        stations_file_name = os.path.basename(path_to_station_file).split('.')[0] # noqa
         inv = self.create_inventory(path_to_station_file)
-        inv.write(obspyfy_path + '/' + stations_file_name + '_inv.xml', format="stationxml")
+        inv.write(obspyfy_path + '/' + stations_file_name + '_inv.xml',
+                  format="stationxml")
 
         stream = self.stream_STA(path_to_station_file)
-        stream.write(obspyfy_path + '/' + stations_file_name + '.mseed', format="MSEED") 
-
+        stream.write(obspyfy_path + '/' + stations_file_name + '.mseed',
+                     format="MSEED")
 
     def create_inventory(self, path_to_station_file: str):
         ##################
@@ -178,10 +257,16 @@ class ElementOutput(AxiSEM3DOutput):
             source="Inventory from axisem STATIONS file")
 
         # Open station file
-        stations = (pd.read_csv(path_to_station_file, 
-                    delim_whitespace=True, 
-                    header=0, 
-                    names=["name","network","latitude","longitude","useless","depth"]))
+        stations = (pd.read_csv(path_to_station_file,
+                    sep=r'\s+',
+                    header=0,
+                    names=["name",
+                           "network",
+                           "latitude",
+                           "longitude",
+                           "useless",
+                           "depth"],
+                    comment='#'))
 
         # Iterate over all stations in the stations file
         for _, station in stations.iterrows():
@@ -191,59 +276,58 @@ class ElementOutput(AxiSEM3DOutput):
                 if network.code == station['network']:
                     net_exists = True
                     net = network
-            if net_exists == False:
+            if net_exists is False:
                 net = Network(
-                code=station['network'],
-                stations=[])
+                    code=station['network'],
+                    stations=[])
                 # add new network to inventory
                 inv.networks.append(net)
 
             # Create station (should be unique!)
             sta = Station(
-            code=station['name'],
-            latitude=station['latitude'],
-            longitude=station['longitude'],
-            elevation=-station['depth'])
+                code=station['name'],
+                latitude=station['latitude'],
+                longitude=station['longitude'],
+                elevation=-station['depth'])
             net.stations.append(sta)
 
             # Create the channels
             # here we must find in which element group is this station located
-            rad = self.Earth_Radius - station['depth']
+            rad = self.Domain_Radius - station['depth']
             lat = np.deg2rad(station['latitude'])
             lon = np.deg2rad(station['longitude'])
-            point = np.array([rad, lat, lon]).reshape(1,3)
+            point = np.array([rad, lat, lon]).reshape(1, 3)
             # get inplane coords
             point = sph2cart(point)
-            point = cart2cyl(cart_geo2cart_src(points=point, 
-                                                rotation_matrix=self.rotation_matrix))
-            point = cart2polar(point[0,0], point[0,1])
-            point[0,1] += np.pi/2
-            element_group = self._separate_by_inplane_domain(point.reshape(1,2))
+            point = cart2cyl(cart_geo2cart_src(points=point,
+                                               rotation_matrix=self._rotation_matrix)) # noqa
+            point = cart2polar(point[0, 0], point[0, 1])
+            point[0, 1] += np.pi/2
+            element_group = self._separate_by_inplane_domain(point.reshape(1, 2)) # noqa
             key = list(self.element_groups_info.keys())[element_group[0]]
-            for channel in self.element_groups_info[key]['metadata']['detailed_channels']:
+            for channel in self.element_groups_info[key]['metadata']['detailed_channels']: # noqa
                 cha = Channel(
-                code=channel,
-                location_code="",
-                latitude=station['latitude'],
-                longitude=station['longitude'],
-                elevation=-station['depth'],
-                depth=station['depth'],
-                azimuth=None,
-                dip=None,
-                sample_rate=None)
+                    code=channel,
+                    location_code="",
+                    latitude=station['latitude'],
+                    longitude=station['longitude'],
+                    elevation=-station['depth'],
+                    depth=station['depth'],
+                    azimuth=None,
+                    dip=None,
+                    sample_rate=None)
                 sta.channels.append(cha)
-            
+
             # Form the lists that will be used as inputs with read_netcdf
             # to get the stream of the wavefield data
             networks.append(station['network'])
             station_names.append(station['name'])
-            locations.append('') # Axisem does not use locations
-            channels_list.append(self.element_groups_info[key]['metadata']['detailed_channels'])
+            locations.append('')  # Axisem does not use locations
+            channels_list.append(self.element_groups_info[key]['metadata']['detailed_channels']) # noqa
 
         return inv
 
-
-    def stream_STA(self, path_to_station_file: str, 
+    def stream_STA(self, path_to_station_file: str,
                    channels: list = None,
                    time_limits: list = None) -> obspy.Stream:
         """Takes in the path to a station file used for axisem3d
@@ -254,7 +338,7 @@ class ElementOutput(AxiSEM3DOutput):
 
         Returns:
             obspy.stream: stream
-        """        
+        """
         # Get time slices from time limits
         if time_limits is not None:
             time_slices = np.where((self.data_time >= time_limits[0]) & (self.data_time <= time_limits[1]))
@@ -262,23 +346,28 @@ class ElementOutput(AxiSEM3DOutput):
             time_slices = None
 
         # Open station file
-        stations = (pd.read_csv(path_to_station_file, 
-                    delim_whitespace=True, 
-                    header=0, 
-                    names=["name","network","latitude","longitude","useless","depth"]))
-        # initiate stream that will hold data 
+        stations = (pd.read_csv(path_to_station_file,
+                    sep=r'\s+',
+                    header=0,
+                    names=["name",
+                           "network",
+                           "latitude",
+                           "longitude",
+                           "useless",
+                           "depth"]))
+        # initiate stream that will hold data
         stream = obspy.Stream()
         for _, station in stations.iterrows():
             stalat = station['latitude']
             stalon = station['longitude']
             stadepth = station['depth']
-            starad = self.Earth_Radius - stadepth
-            
+            starad = self.Domain_Radius - stadepth
+
             # Find the element group of this point
             point = np.array([starad, stalat, stalon]).reshape(1,3)
             point = sph2cart(point)
-            point = cart2cyl(cart_geo2cart_src(points=point, 
-                                                rotation_matrix=self.rotation_matrix))
+            point = cart2cyl(cart_geo2cart_src(points=point,
+                                                rotation_matrix=self._rotation_matrix))
             point = cart2polar(point[0,0], point[0,1])
             point[0,1] += np.pi/2
             element_group = self._separate_by_inplane_domain(point.reshape(1,2))
@@ -286,7 +375,7 @@ class ElementOutput(AxiSEM3DOutput):
 
             # get the data at this station (assuming RTZ components)
             wave_data = self.load_data(points=np.array([starad, stalat, stalon]),
-                                        channels=channels, 
+                                        channels=channels,
                                         time_slices=time_slices)
             # Construct metadata
             data_time = self.element_groups_info[key]['metadata']['data_time']
@@ -313,8 +402,7 @@ class ElementOutput(AxiSEM3DOutput):
 
         return stream
 
-
-    def stream(self, points: np.ndarray, coord_in_deg: bool = True, 
+    def stream(self, points: np.ndarray, coord_in_deg: bool = True,
                channels: list = None,
                time_limits: list = None) -> obspy.Stream:
         """
@@ -339,7 +427,7 @@ class ElementOutput(AxiSEM3DOutput):
 
         Returns:
             obspy.Stream: A stream containing the wavefields computed at all stations.
-        """ 
+        """
 
         # Get time slices from time limits. We assume that all points have the same time axis!!!!
         first_key = next(iter(self.element_groups_info))
@@ -352,18 +440,18 @@ class ElementOutput(AxiSEM3DOutput):
 
         points = np.array(points)
         if points.ndim == 1:
-            # In case we receive a point as a vector ... 
+            # In case we receive a point as a vector ...
             points = points.reshape((1,3))
 
-        # initiate stream that will hold data 
+        # initiate stream that will hold data
         stream = obspy.Stream()
         # get the data at this station (assuming RTZ components)
         wave_data = self.load_data(points=points,
-                                    channels=channels, 
-                                    time_slices=time_slices, 
+                                    channels=channels,
+                                    time_slices=time_slices,
                                     in_deg=coord_in_deg)
         for point_index, point in enumerate(points):
-            # Construct metadata 
+            # Construct metadata
             delta = data_time[1] - data_time[0]
             npts = len(data_time)
             network = str(np.random.randint(0, 100))
@@ -388,19 +476,18 @@ class ElementOutput(AxiSEM3DOutput):
 
         return stream
 
-
-    def load_data(self, points: np.ndarray, frame: str='geographic', 
-                  coords: str='spherical', in_deg: bool=True,
-                  channels: list=None, time_slices: list=None,
-                  batch_size: int=1000):
+    def load_data(self, points: np.ndarray, frame: str = 'geographic',
+                  coords: str = 'spherical', in_deg: bool = True,
+                  channels: list = None, time_slices: list = None,
+                  batch_size: int = 1000):
         # Only options for coords are geographic+spherical,
         # geographic+cartesian, source+cylindrical and source+spherical
 
         # If we receive only one point as ndarray([a,b,c]) we turn it into
         # ndarray([[a,b,c]])
         if points.ndim == 1:
-            points = points.reshape((1,3))
-        
+            points = points.reshape((1, 3))
+
         # Make sure the data type of points is floats
         points = points.astype(np.float64)
 
@@ -410,27 +497,33 @@ class ElementOutput(AxiSEM3DOutput):
                 if in_deg is True:
                     points[:, 1:] = np.deg2rad(points[:, 1:])
                 points = sph2cart_mpmath(points)
-            points = cart2cyl_mpmath(cart_geo2cart_src(points=points, 
-                                                rotation_matrix=self.rotation_matrix))
-            logging.info("Transformed points to cylindrical coordinates in source frame.")
-        # Convert the string representation to a NumPy array of floats
+            points = cart2cyl_mpmath(
+                cart_geo2cart_src(points=points,
+                                  rotation_matrix=self._rotation_matrix)
+            )
+            logging.info("Transformed points to cylindrical coordinates "
+                         "in source frame.")
+
+        # Convert the string representation to a NumPy array of floats (I think
+        # this was to go from mpmath to numpy format ...)
         points = np.vectorize(lambda x: float(str(x)))(points)
         # We add pi/2 beacause by default cart2polar sets theta to zero along
         # the s axis, but in the inparam.output theta is set to 0 at the z axis
-        inplane_points = cart2polar_mpmath(points[:,0], points[:,1])
-        inplane_points[:,1] += np.pi/2
+        inplane_points = cart2polar_mpmath(points[:, 0], points[:, 1])
+        inplane_points[:, 1] += np.pi/2
 
         # Separate inplane points by the element group they are part of
-        group_mapping = self._separate_by_inplane_domain(inplane_points) 
+        group_mapping = self._separate_by_inplane_domain(inplane_points)
 
         # Create channel slices and time slices if not given. Look at what
         # groups are present and make sure that all groups have the needed
         # channels in the same position
         if time_slices is None:
-            time_slices = np.arange(len(self.element_groups_info[next(iter(self.element_groups_info))]['metadata']['data_time']))
-        
+            time_slices = np.arange(len(self.element_groups_info[
+                next(iter(self.element_groups_info))]['metadata']['data_time']))
+
         # Initialize the final result
-        final_result = np.ones((len(points),len(channels),len(time_slices)))
+        final_result = np.ones((len(points), len(channels), len(time_slices)))
 
         # Compute the inplane coordinates
         """ # Interpolate all groups
@@ -442,9 +535,11 @@ class ElementOutput(AxiSEM3DOutput):
                                                                                 channel_slices, time_slices) """
 
         # Interpolate all groups
-        with tqdm(total=len(points), desc="Loading and interpolating", unit="point") as pbar:
-            for group_index, element_group in enumerate(self.element_groups_info):
-                point_index = np.where(group_mapping==group_index)
+        with tqdm(total=len(points), desc="Loading and interpolating",
+                  unit="point") as pbar:
+            for group_index, element_group in enumerate(
+                             self.element_groups_info):
+                point_index = np.where(group_mapping == group_index)
                 group_points = points[point_index]
                 if len(group_points) != 0:
                     group = list(self.element_groups_info.keys())[group_index]
@@ -453,65 +548,81 @@ class ElementOutput(AxiSEM3DOutput):
                     num_batches = len(group_points) // batch_size
 
                     for batch_index in range(num_batches):
-                        point_index_batch = (point_index[0][batch_index*batch_size:(batch_index+1)*batch_size],)
-                        group_points_batch = group_points[batch_index*batch_size:(batch_index+1)*batch_size]
+                        point_index_batch = (
+                            point_index[0][batch_index * batch_size:
+                                           (batch_index+1)*batch_size],
+                        )
+                        group_points_batch = group_points[batch_index*batch_size: # noqa
+                                                          (batch_index+1)*batch_size] # noqa
 
-                        final_result[point_index_batch,:,:] = self.load_data_from_element_group(group_points_batch, element_group,
-                                                                                            channel_slices, time_slices, pbar)
+                        final_result[point_index_batch, :, :] = self.load_data_from_element_group( # noqa
+                                group_points_batch, element_group,
+                                channel_slices, time_slices, pbar
+                        )
                     # now compute the remaining group points if any left
                     if num_batches*batch_size != len(group_points):
-                        point_index_batch_residue = (point_index[0][num_batches*batch_size:],)
-                        group_points_batch_residue = group_points[num_batches*batch_size:]
-                        final_result[point_index_batch_residue,:,:] = self.load_data_from_element_group(
-                                                                            group_points_batch_residue, element_group,
-                                                                            channel_slices, time_slices, pbar)
-
+                        point_index_batch_residue = (
+                            point_index[0][num_batches*batch_size:],
+                        )
+                        group_points_batch_residue = (
+                            group_points[num_batches*batch_size:]
+                        )
+                        final_result[point_index_batch_residue, :, :] = self.load_data_from_element_group( # noqa
+                            group_points_batch_residue, element_group,
+                            channel_slices, time_slices, pbar
+                        )
 
         return final_result
 
-
-    def _separate_by_inplane_domain(self, inplane_points: np.ndarray, domains: list=None) -> np.ndarray:
+    def _separate_by_inplane_domain(self, inplane_points: np.ndarray,
+                                    domains: list = None) -> np.ndarray:
         """
-        Assigns each point in the given ndarray to one of the specified domains based on their polar coordinates.
+        Assigns each point in the given ndarray to one of the specified domains
+        based on their polar coordinates.
 
         Args:
-            inplane_points (numpy.ndarray): The ndarray containing points in polar coordinates [radius, theta].
-            domains (list): List of domains specified as [r_min, r_max, theta_min, theta_max].
+            inplane_points (numpy.ndarray): The ndarray containing points in
+            polar coordinates [radius, theta].
+            domains (list): List of domains specified as [r_min, r_max,
+            theta_min, theta_max].
 
         Returns:
-            numpy.ndarray: An array containing the assigned domain index for each point.
-                        If a point does not fall within any domain, it is assigned the value -1.
+            numpy.ndarray: An array containing the assigned domain index for
+            each point. If a point does not fall within any domain, it is
+                        assigned the value -1.
         """
-        if domains == None:
+        if domains is None:
             # Then we use as domains the domains defined by the element groups:
             # Find all the domains available in the outputs
             domains = []
             for element_group in self.element_groups_info.values():
-                r_min, r_max = element_group['elements']['vertical_range']
-                theta_min, theta_max = element_group['elements']['horizontal_range']
+                r_min, r_max = map(float, element_group['elements']['vertical_range']) # noqa
+                theta_min, theta_max = element_group['elements']['horizontal_range'] # noqa
                 domains.append([r_min, r_max, theta_min, theta_max])
 
         # Initialize array to store assigned domains
-        group_mapping = np.zeros(inplane_points.shape[0], dtype=int)  
-        
+        group_mapping = np.zeros(inplane_points.shape[0], dtype=int)
+
         for i, point in enumerate(inplane_points):
             radius, theta = point
             # Loop through each domain and check if the point falls within it
             not_in_any_domain = True
             for domain_idx, domain in enumerate(domains):
                 r_min, r_max, theta_min, theta_max = domain
-                if r_min <= radius <= r_max and theta_min <= theta <= theta_max and not_in_any_domain:
-                    group_mapping[i] = domain_idx  # Assign domain index to the point
+                if (r_min <= radius <= r_max and
+                    theta_min <= theta <= theta_max and
+                        not_in_any_domain):
+                    # Assign domain index to the point
+                    group_mapping[i] = domain_idx
                     not_in_any_domain = False
                     break  # No need to check other domains
             if not_in_any_domain:
                 group_mapping[i] = -1
 
         return np.array(group_mapping)
-    
 
     def load_data_from_element_group(self, points: np.ndarray, group: str,
-                                    channel_slices: list=None, time_slices: list=None, 
+                                    channel_slices: list=None, time_slices: list=None,
                                     pbar=None):
         # All points must be from the same element group!!!
 
@@ -608,7 +719,7 @@ class ElementOutput(AxiSEM3DOutput):
                         problematic_elements.append(index)
                         proof.append(points)
                 #self.plot_mesh(np.array(elements)[problematic_elements])
-                
+
                 # Read the data from the file
                 logging.info('Loading raw data.')
                 data = self.element_groups_info[group]['metadata']['files'][file]['data_wave__NaG=%d' % nag][elements_in_file_nag][:,:,:,channel_slices,time_slices].data
@@ -683,17 +794,17 @@ class ElementOutput(AxiSEM3DOutput):
                 points_of_interest = cart2polar(points_of_interest[:,0], points_of_interest[:,1]).reshape(original_shape)
                 GLL_rads = points_of_interest[:,[0,1,2],[0]]
                 GLL_thetas = points_of_interest[:,[2,3,4],[1]]
-                
+
                 # Compute interpolation weights (LIM)
                 logging.info('Compute LIM')
                 lr = np.array([
-                    self._lagrange(good_inplane_coords[:,0], GLL_rads, i, lagrange_order) 
+                    self._lagrange(good_inplane_coords[:,0], GLL_rads, i, lagrange_order)
                     for i in range(lagrange_order)]).transpose()
                 ltheta = np.array([
-                    self._lagrange(good_inplane_coords[:,1], GLL_thetas, i, lagrange_order) 
+                    self._lagrange(good_inplane_coords[:,1], GLL_thetas, i, lagrange_order)
                     for i in range(lagrange_order)]).transpose()
                 LIM = np.array([
-                    np.outer(ltheta_i, lr_i).flatten() 
+                    np.outer(ltheta_i, lr_i).flatten()
                     for ltheta_i, lr_i in zip(ltheta, lr)])
 
                 # Manually add back into LIM some improvised weights at the
@@ -706,7 +817,7 @@ class ElementOutput(AxiSEM3DOutput):
                 else:
                     for location in map_of_problematique:
                         LIM = np.insert(LIM, location, np.array([0,0,0,0,1,0,0,0,0]), axis=0)
-                
+
                 # Interpolate
                 logging.info('Inplane interpolate')
                 inplane_interpolated_data = np.sum(expanded_data * LIM[:,np.newaxis,:,np.newaxis,np.newaxis], axis=2)
@@ -715,8 +826,8 @@ class ElementOutput(AxiSEM3DOutput):
                 inplane_point_repetitions = []
                 for inplane_points in main_dict[file][nag].values():
                     for azimuthal_points in inplane_points.values():
-                        inplane_point_repetitions.append(len(azimuthal_points))                        
-                
+                        inplane_point_repetitions.append(len(azimuthal_points))
+
                 # expand to point level
                 logging.info('Expanding data to points')
                 if max(inplane_point_repetitions) == 1:
@@ -764,8 +875,8 @@ class ElementOutput(AxiSEM3DOutput):
 
                 pbar.update(len(name_list))
         return final_result
-    
-    
+
+
     def load_data_on_mesh(self, mesh:Mesh, channels: list, time_slices: list):
         """
         Load data on a mesh.
@@ -778,14 +889,14 @@ class ElementOutput(AxiSEM3DOutput):
             R_min (float): The minimum radius for the slice in Earth radii.
             resolution (int): The resolution of the slice (number of points along each dimension).
             channels (list): The channels of data to load.
-            return_slice (bool, optional): Whether to return additional slice information. 
+            return_slice (bool, optional): Whether to return additional slice information.
                                         Defaults to False.
 
         Returns:
             numpy.ndarray or list: An ndarray containing the loaded data on the slice,
                                 and optionally, additional slice information.
 
-        """                                                                    
+        """
         inplane_field = np.full((mesh.resolution, mesh.resolution, len(channels), len(time_slices)), np.NaN)
         data = self.load_data(points=mesh.points, frame='geographic', coords='spherical', in_deg=False,
                               channels=channels, time_slices=time_slices)
@@ -832,14 +943,14 @@ class ElementOutput(AxiSEM3DOutput):
         if source_location is None and station_location is None:
             source_location = np.array([R_max, 0, 0])
             station_location = np.array([R_max, 0, np.radians(30)])
-        
+
         # Get time slices from frame rate and video_duration assuming that the
         # video will include the entire time axis. We also assume that each
         # element group that will be plotted has the same time axis
         # Check if all time axes are the same
-        data_time_arrays = [self.element_groups_info[key]['metadata']['data_time'] 
+        data_time_arrays = [self.element_groups_info[key]['metadata']['data_time']
                             for key in self.element_groups_info]
-        all_data_time_same = all(np.array_equal(data_time_arrays[0], arr) 
+        all_data_time_same = all(np.array_equal(data_time_arrays[0], arr)
                                  for arr in data_time_arrays[1:])
         if not all_data_time_same:
             logging.error('Not all element groups have the same time axis.')
@@ -875,7 +986,7 @@ class ElementOutput(AxiSEM3DOutput):
 
         # Set font size
         plt.rcParams.update({'font.size': 6})
-        
+
         # Create a figure and axes
         fig, axes = plt.subplots(num_rows, num_cols, dpi=300)
 
@@ -887,26 +998,30 @@ class ElementOutput(AxiSEM3DOutput):
         # Replace values outside the circle with NaN
         distance_from_center = np.sqrt(mesh.inplane_DIM1**2 + mesh.inplane_DIM2**2)
 
-
         # Find out which discontinuities (from base model) appear in the animation
         discontinuities_to_plot = []#[discontinuity for discontinuity in self.base_model['DISCONTINUITIES'] if R_min <= discontinuity <= R_max]
         for channel_slice, ax in enumerate(np.ravel(axes)):
             if channel_slice < len(channels):
                 ax.set_aspect('equal')
-                contour = ax.contourf(mesh.inplane_DIM1, mesh.inplane_DIM2, 
-                                    processed_values[:, :, channel_slice, 0], 
-                                    levels=np.linspace(cbar_min[channel_slice], cbar_max[channel_slice], 100), 
-                                    cmap='RdBu_r', extend='both')
-                ax.scatter(np.dot(mesh.point1, mesh.base1), np.dot(mesh.point1, mesh.base2))
-                ax.scatter(np.dot(mesh.point2, mesh.base1), np.dot(mesh.point2, mesh.base2))
+                contour = ax.contourf(mesh.inplane_DIM1, mesh.inplane_DIM2,
+                                      processed_values[:, :, channel_slice, 0],
+                                      levels=np.linspace(cbar_min[channel_slice], # noqa
+                                                         cbar_max[channel_slice], 100), # noqa
+                                      cmap='RdBu_r', extend='both')
+                ax.scatter(np.dot(mesh.point1, mesh.base1), np.dot(mesh.point1,
+                                                                   mesh.base2))
+                ax.scatter(np.dot(mesh.point2, mesh.base1), np.dot(mesh.point2,
+                                                                   mesh.base2))
                 ax.set_title(f'Subplot {channels[channel_slice]}')
 
                 # Create a colorbar for each subplot
-                cbar = plt.colorbar(contour, ax=ax,fraction=0.046, pad=0.04)
-                cbar_ticks = np.linspace(cbar_min[channel_slice], cbar_max[channel_slice], 5)
-                cbar_ticklabels = ['{:0.1e}'.format(cbar_tick) for cbar_tick in cbar_ticks]
-                #cbar.set_ticks(cbar_ticks)
-                #cbar.set_ticklabels(cbar_ticklabels)
+                cbar = plt.colorbar(contour, ax=ax, fraction=0.046, pad=0.04)
+                cbar_ticks = np.linspace(cbar_min[channel_slice],
+                                         cbar_max[channel_slice], 5)
+                cbar_ticklabels = ['{:0.1e}'.format(cbar_tick) for
+                                   cbar_tick in cbar_ticks]
+                # cbar.set_ticks(cbar_ticks)
+                # cbar.set_ticklabels(cbar_ticklabels)
                 cbar.set_label('Intensity')
             else:
                 ax.axis('off')
@@ -917,20 +1032,26 @@ class ElementOutput(AxiSEM3DOutput):
                     ax.cla()
                     ax.set_aspect('equal')
                     # Color everything outside the circle in white
-                    outside_circle = plt.Circle((0, 0), R_max, color='white', fill=True)
+                    outside_circle = plt.Circle((0, 0), R_max,
+                                                color='white', fill=True)
                     ax.add_artist(outside_circle)
-                    
-                    contour = ax.contourf(mesh.inplane_DIM1, mesh.inplane_DIM2, 
-                                        processed_values[:, :, channel_slice, frame], 
-                                        levels=np.linspace(cbar_min[channel_slice], cbar_max[channel_slice], 100), 
-                                        cmap='RdBu_r', extend='both')
-                    ax.scatter(np.dot(mesh.point1, mesh.base1), np.dot(mesh.point1, mesh.base2))
-                    ax.scatter(np.dot(mesh.point2, mesh.base1), np.dot(mesh.point2, mesh.base2))
+
+                    contour = ax.contourf(mesh.inplane_DIM1, mesh.inplane_DIM2,
+                                          processed_values[:, :, channel_slice, frame], # noqa
+                                          levels=np.linspace(cbar_min[channel_slice], # noqa
+                                                             cbar_max[channel_slice], 100), # noqa
+                                          cmap='RdBu_r', extend='both')
+                    ax.scatter(np.dot(mesh.point1, mesh.base1),
+                               np.dot(mesh.point1, mesh.base2))
+                    ax.scatter(np.dot(mesh.point2, mesh.base1),
+                               np.dot(mesh.point2, mesh.base2))
                     ax.set_title(f'Subplot {channels[channel_slice]}')
-                    
+
                     # Add a circle with radius R to the plot
                     for r in discontinuities_to_plot:
-                        circle = plt.Circle((0, 0), r, color='black', fill=False)
+                        circle = plt.Circle((0, 0), r,
+                                            color='black',
+                                            fill=False)
                         ax.add_artist(circle)
                 else:
                     ax.axis('off')
@@ -938,76 +1059,86 @@ class ElementOutput(AxiSEM3DOutput):
             return contour
 
         # Adjust spacing between subplots
-        plt.subplots_adjust(left=0.1, right=0.9, bottom=0.1, top=0.9, wspace=0.3, hspace=0.3)
+        plt.subplots_adjust(left=0.1, right=0.9, bottom=0.1, top=0.9,
+                            wspace=0.3, hspace=0.3)
 
         # Create the animation
-        ani = animation.FuncAnimation(fig, update, frames=video_duration * frame_rate, interval=1e3 / frame_rate)
-        ani.save(self.path_to_elements_output + '/' + name + '_animation.mp4', writer='ffmpeg')
-
+        ani = animation.FuncAnimation(fig, update,
+                                      frames=video_duration * frame_rate,
+                                      interval=1e3 / frame_rate)
+        ani.save(self.path_to_elements_output + '/' + name + '_animation.mp4',
+                 writer='ffmpeg')
 
     def _point_not_in_output_domain(self, point: list) -> bool:
         # The point must be given as [rad, lat, lon] in radians and in the
         # geographical frame and spherical coords
 
         # Transfrom point into spherical coords in the source frame
-        rad, lat, _ = cart2sph(cart_geo2cart_src(sph2cart(point), rotation_matrix=self.rotation_matrix))
+        rad, lat, _ = cart2sph(cart_geo2cart_src(sph2cart(point),
+                                                 rotation_matrix=self._rotation_matrix)) # noqa
         # In the inparam.output the angle for the horizontal range is actually
         # the colatitude in the source frame therefore we must transform the
         # latitude to colatitude
         colat = np.pi/2 - lat
         if self.vertical_range[0] > rad or rad > self.vertical_range[1] \
-            or colat < self.horizontal_range[0] or colat > self.horizontal_range[1]:
+                or colat < self.horizontal_range[0] or colat > self.horizontal_range[1]: # noqa
             return True
         else:
             return False
-
 
     def _read_element_metadata(self, element_group_name: str):
         """Reads a folder that contains the element output files from Axisem3D
         and outputs the metadata needed to access any data point from the mesh.
 
         Returns:
-            na_grid (numpy array): A 1D array that contains all "Nr"s used in the 
-                                Fourier expansions in the D domain.
+            na_grid (numpy array): A 1D array that contains all "Nr"s used in
+                                the Fourier expansions in the D domain.
             data_time (np array): Global time steps of the simulation.
-            list_element_na (np array): For each element, it gives a 1D array that
-                                        contains:
+            list_element_na (np array): For each element, it gives a 1D array
+                                        that contains:
                                         1. Element tag in the mesh
                                         2. Actual "Nr"
-                                        3. Stored "Nr" (in case you didn't want to store
+                                        3. Stored "Nr" (in case you didn't want
+                                        to store
                                         all the Nrs)
                                         4. Element index in the data (local)
                                         5. Element index in the data (global)
-            list_element_coords (np array): For each element, for each grid point,
-                                            gives the coordinates in the D domain as
-                                            (s, z).
-            dict_list_element (dict): Lists of element tags arranged by Nr in the dict.
-            nc_files (list): List of opened netCDF files containing the element output data.
-            elements_index_limits (list): List of element index limits for each netCDF file.
+            list_element_coords (np array): For each element, for each grid
+                                            point, gives the coordinates in
+                                            the D domain as (s, z).
+            dict_list_element (dict): Lists of element tags arranged by Nr in
+            the dict.
+            nc_files (list): List of opened netCDF files containing the element
+            output data.
+            elements_index_limits (list): List of element index limits for each
+            netCDF file.
             detailed_channels (list): List of detailed channel names.
 
         Note:
             This method assumes that the element output files are stored in the
             `path_to_elements_output` directory.
-        """      
-        ################ open files ################
+        """
+        # open files
         # filenames (sorted correctly)
-        path_to_element_group = os.path.join(self.path_to_elements_output, element_group_name)
-        nc_fnames = sorted([f for f in os.listdir(path_to_element_group) if 'axisem3d_synthetics.nc' in f])
-        
+        path_to_element_group = os.path.join(self.path_to_elements_output,
+                                             element_group_name)
+        nc_fnames = sorted([f for f in os.listdir(path_to_element_group) if
+                            'axisem3d_synthetics.nc' in f])
+
         # open files
         nc_files = []
         for nc_fname in nc_fnames:
-            nc_files.append(xr.open_dataset(os.path.join(path_to_element_group, nc_fname)))
-        
-        ################ variables that are the same in the datasets ################
+            nc_files.append(xr.open_dataset(os.path.join(path_to_element_group,
+                                                         nc_fname)))
+
+        # variables that are the same in the datasets
         # read Na grid (all azimuthal dimensions)
         na_grid = nc_files[0].data_vars['list_na_grid'].values.astype(int)
 
         # read time
         data_time = nc_files[0].data_vars['data_time'].values
-        
-        ################ variables to be concatenated over the datasets minud the data itself################
+
+        # variables to be concatenated over the datasets minud the data itself
         # define empty lists of xarray.DataArray objects
         xda_list_element_na = []
         xda_list_element_coords = []
@@ -1015,58 +1146,43 @@ class ElementOutput(AxiSEM3DOutput):
         detailed_channels = [str_byte.decode('utf-8') for str_byte in nc_files[0].list_channel.data]
         elements_index_limits = [0]
         index_limit = 0
-        ######dict_xda_data_wave = {}
+        # dict_xda_data_wave = {}
         for nag in na_grid:
             dict_xda_list_element[nag] = []
-        
+
         # loop over nc files
         for i, nc_file in enumerate(nc_files):
             # append DataArrays
             index_limit += nc_file.sizes['dim_element']
             elements_index_limits.append(index_limit)
             xda_list_element_na.append(nc_file.data_vars['list_element_na'])
-            xda_list_element_coords.append(nc_file.data_vars['list_element_coords'])
+            xda_list_element_coords.append(nc_file.data_vars['list_element_coords']) # noqa
             for nag in na_grid:
-                dict_xda_list_element[nag].append(nc_file.data_vars['list_element__NaG=%d' % nag])
+                dict_xda_list_element[nag].append(nc_file.data_vars['list_element__NaG=%d' % nag]) # noqa
 
         # concat xarray.DataArray
         xda_list_element_na = xr.concat(xda_list_element_na, dim='dim_element')
-        xda_list_element_coords = xr.concat(xda_list_element_coords, dim='dim_element')
+        xda_list_element_coords = xr.concat(xda_list_element_coords,
+                                            dim='dim_element')
         for nag in na_grid:
-            dict_xda_list_element[nag] = xr.concat(dict_xda_list_element[nag], dim='dim_element__NaG=%d' % nag)
+            dict_xda_list_element[nag] = xr.concat(dict_xda_list_element[nag],
+                                                   dim='dim_element__NaG=%d' % nag) # noqa
 
         # read data to numpy.ndarray
         list_element_na = xda_list_element_na.values.astype(int)
         list_element_coords = xda_list_element_coords.values
         dict_list_element = {}
         for nag in na_grid:
-            dict_list_element[nag] = dict_xda_list_element[nag].values.astype(int)
+            dict_list_element[nag] = dict_xda_list_element[nag].values.astype(int) # noqa
 
-        ############### return ################
-        # Here we return the files only because in this format they are not being loaded into RAM
-        # Since these files are huge we prefer to load into ram only the file where the data that we 
-        # want is located and then close the file. 
+        # return: Here we return the files only because in this format they are
+        # not being loaded into RAM Since these files are huge we prefer to
+        # load into ram only the file where the data that we want is located
+        # and then close the file.
         return na_grid, data_time, list_element_na, \
-               list_element_coords, dict_list_element, \
-               nc_files, elements_index_limits, \
-               detailed_channels
-
-
-    def _compute_rotation_matrix(self):
-        """Computes the rotation matrix that aligns the z axis with the source axis
-
-        Returns:
-            np.ndarray: 3D rotation matrix
-        """
-        # get real earth coordinates of the sources
-        colatitude = np.pi/2 - np.deg2rad(self.source_lat)
-        longitude = np.deg2rad(self.source_lon)
-
-        # rotation matrix into the source frame (based on Tarje's PhD)
-        return np.asarray([[np.cos(colatitude) * np.cos(longitude), -np.sin(longitude), np.sin(colatitude) * np.cos(longitude)],
-                           [np.cos(colatitude) * np.sin(longitude), np.cos(longitude), np.sin(colatitude) * np.sin(longitude)],
-                           [-np.sin(colatitude), 0, np.cos(colatitude)]])
-
+            list_element_coords, dict_list_element, \
+            nc_files, elements_index_limits, \
+            detailed_channels
 
     def _lagrange(self, evaluation_points, GLL_points, i, order):
         """ Lagrange function implementation
@@ -1076,7 +1192,8 @@ class ElementOutput(AxiSEM3DOutput):
             if i != j:
                 try:
                     with warnings.catch_warnings(record=True) as w:
-                        value *= (evaluation_points - GLL_points[:,j]) / (GLL_points[:,i] - GLL_points[:,j])
+                        value *= (evaluation_points - GLL_points[:, j]) / \
+                                 (GLL_points[:, i] - GLL_points[:, j])
                     if w:
                         # A warning occurred, print it along with the traceback
                         warning = w[-1]
@@ -1085,7 +1202,6 @@ class ElementOutput(AxiSEM3DOutput):
                     # In case of any exception, print the error message
                     print(f"Error: {str(e)}")
         return value
-            
 
     def _find_range(self, arr, percentage_min, percentage_max):
         """
@@ -1096,68 +1212,51 @@ class ElementOutput(AxiSEM3DOutput):
             percentage (float): The percentage of values to consider.
 
         Returns:
-            smallest_value (float or None): The smallest value based on the given percentage,
-                                        or None if the array is empty or contains no finite values.
+            smallest_value (float or None): The smallest value based on the
+            given percentage, or None if the array is empty or contains no
+            finite values.
         """
         # Flatten the array to a 1D array
         flattened = arr[np.isfinite(arr)].flatten()
-        
+
         if len(flattened) == 0:
             return None
 
         # Sort the flattened array in ascending order
         sorted_arr = np.sort(flattened)
-        
+
         # Compute the index that corresponds to percentage of the values
-        percentile_index_min = int(len(sorted_arr) * percentage_min)        
-        percentile_index_max= int(len(sorted_arr) * percentage_max)
-        
+        percentile_index_min = int(len(sorted_arr) * percentage_min)
+        percentile_index_max = int(len(sorted_arr) * percentage_max)
+
         # Get the value at the computed index
         smallest_value = sorted_arr[percentile_index_min]
         biggest_value = sorted_arr[percentile_index_max]
-        
-        return [smallest_value, biggest_value] 
 
+        return [smallest_value, biggest_value]
 
     def _channel_slices(self, channels, group):
         # Get channel slices from channels
-        detailed_channels = self.element_groups_info[group]['metadata']['detailed_channels']
-        if isinstance(channels, list) and all(ch in detailed_channels for ch in channels):
+        detailed_channels = self.element_groups_info[group]['metadata']['detailed_channels'] # noqa
+        if isinstance(channels, list) and all(ch in detailed_channels for ch in channels): # noqa
             return [detailed_channels.index(ch) for ch in channels]
 
         if channels is not None:
-            if(self._check_elements(channels, self.element_groups_info[group]['wavefields']['channels'])):
+            if (self._check_elements(channels,
+                                     self.element_groups_info[group]['wavefields']['channels'])): # noqa
                 # Filter by channel chosen
                 channel_slices = []
                 for channel in channels:
-                    channel_slices += [index for index, element in enumerate(detailed_channels) if element.startswith(channel)]
+                    channel_slices += [
+                        index for index, element in enumerate(detailed_channels) if element.startswith(channel) # noqa
+                    ]
             else:
-                raise Exception('Only the following channels exist: ' + ', '.join(self.element_groups_info[group]['wavefields']['channels']))
+                raise Exception('Only the following channels exist: ' +
+                                ', '.join(self.element_groups_info[group]['wavefields']['channels'])) # noqa
         else:
             channel_slices = None
 
         return channel_slices
-
-
-    def _find_simulation_path(self, path: str):
-        """
-
-        Args:
-            path_to_station_file (str): path to station.txt file
-
-        Returns:
-            parent_directory
-        """
-        current_directory = os.path.abspath(path)
-        while True:
-            parent_directory = os.path.dirname(current_directory)
-            if 'output' in os.path.basename(current_directory):
-                return parent_directory
-            elif current_directory == parent_directory:
-                # Reached the root directory, "output" directory not found
-                return None
-            current_directory = parent_directory
-
 
     def _check_elements(self, list1, list2):
         """Checks if all elements in list1 can be found in list2.
@@ -1167,10 +1266,12 @@ class ElementOutput(AxiSEM3DOutput):
             list2 (list): The second list.
 
         Returns:
-            bool: True if all elements in list1 are found in list2, False otherwise.
+            bool: True if all elements in list1 are found in list2, False
+            otherwise.
             list: List of elements from list1 that are not found in list2.
         """
-        missing_elements = [element for element in list1 if element not in list2]
+        missing_elements = [element for element in list1
+                            if element not in list2]
         if len(missing_elements) == 0:
             return True
         else:

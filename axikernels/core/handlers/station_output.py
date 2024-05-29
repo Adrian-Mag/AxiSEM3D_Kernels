@@ -36,6 +36,28 @@ class StationOutput(AxiSEM3DOutput):
         self.data_time = self._get_time()
         # Load metadata
         self._load_metadata()
+        # Store inventory
+        self._stored_inventory = None
+
+    def _find_simulation_path(self, path: str):
+        """Takes in the path to a station file used for axisem3d
+        and returns a stream with the wavefields computed at all stations
+
+        Args:
+            path_to_station_file (str): path to station.txt file
+
+        Returns:
+            parent_directory
+        """
+        current_directory = os.path.abspath(path)
+        while True:
+            parent_directory, base_name = os.path.split(current_directory)
+            if 'output' in base_name:
+                return parent_directory
+            elif current_directory == parent_directory:
+                # Reached the root directory, "output" directory not found
+                return None
+            current_directory = parent_directory
 
     def _load_metadata(self):
         with open(self.inparam_output, 'r') as file:
@@ -50,6 +72,8 @@ class StationOutput(AxiSEM3DOutput):
                                   replace('2', self.coordinate_frame[1]).
                                   replace('3', self.coordinate_frame[2])
                                   for element in self.detailed_channels]
+        default_event_time = UTCDateTime("1970-01-01T00:00:00.0Z")
+        self._starttime = default_event_time + self.data_time[0]
 
     def _load_files(self):
         pattern = 'axisem3d_synthetics.nc.rank'
@@ -115,6 +139,7 @@ class StationOutput(AxiSEM3DOutput):
                         index
                         for index, element in enumerate(self.detailed_channels)
                         if element.startswith(channel)]
+                channel_indices = np.array(channel_indices)
             else:
                 raise Exception('Only the following channels exist: ' +
                                 ', '.join(self.detailed_channels))
@@ -132,7 +157,7 @@ class StationOutput(AxiSEM3DOutput):
                                 ' and ' + str(max(self.data_time)))
         else:
             indices = np.arange(len(self.data_time))
-        result = wave_data[channel_indices, indices]
+        result = wave_data[channel_indices][:, indices]
         if result.ndim == 1:
             return result.reshape(1, -1)
         else:
@@ -191,14 +216,14 @@ class StationOutput(AxiSEM3DOutput):
                             network, station_name, channels, time_limits
                             )
                     # form obspy trace
-                    trace = obspy.Trace(wavefield_data[chn_index])
+                    trace = obspy.Trace(np.ascontiguousarray(wavefield_data[chn_index]))
                     trace.stats.delta = delta
                     trace.stats.ntps = npts
                     trace.stats.network = network
                     trace.stats.station = station_name
                     trace.stats.location = location
                     trace.stats.channel = chn
-                    trace.stats.starttime = self.starttime
+                    trace.stats.starttime = self._starttime
                     stream.append(trace)
                 else:
                     # extract data
@@ -206,7 +231,7 @@ class StationOutput(AxiSEM3DOutput):
                         network, station_name, channels, time_limits
                         )
                     # form obspy trace
-                    trace = obspy.Trace(wavefield_data[chn_index])
+                    trace = obspy.Trace(np.ascontiguousarray(wavefield_data[chn_index]))
                     trace.stats.delta = delta
                     trace.stats.ntps = npts
                     trace.stats.network = network
@@ -244,36 +269,6 @@ class StationOutput(AxiSEM3DOutput):
             return True
         else:
             return False
-
-    @property
-    def starttime(self) -> UTCDateTime:
-        """Get the start time of the waveform.
-
-        Returns:
-            obspy.UTCDateTime: Start time of the waveform
-        """
-        default_event_time = UTCDateTime("1970-01-01T00:00:00.0Z")
-        return default_event_time + self.data_time[0]
-
-    def _find_simulation_path(self, path: str):
-        """Takes in the path to a station file used for axisem3d
-        and returns a stream with the wavefields computed at all stations
-
-        Args:
-            path_to_station_file (str): path to station.txt file
-
-        Returns:
-            parent_directory
-        """
-        current_directory = os.path.abspath(path)
-        while True:
-            parent_directory, base_name = os.path.split(current_directory)
-            if 'output' in base_name:
-                return parent_directory
-            elif current_directory == parent_directory:
-                # Reached the root directory, "output" directory not found
-                return None
-            current_directory = parent_directory
 
     def _get_detailed_channels(self):
         """ The existence of this function is the terrbile
@@ -321,80 +316,81 @@ class StationOutput(AxiSEM3DOutput):
 
         return self.stream(networks, stations)
 
-    def get_inventory(self):
-        ##################
-        # Create Inventory
-        ##################
+    @property
+    def inventory(self):
+        if self._stored_inventory is None:
+            networks = []
+            station_names = []
+            locations = []
+            channels_list = []
 
-        networks = []
-        station_names = []
-        locations = []
-        channels_list = []
+            # Get path to where the new inventory will be saved, and coordinates
 
-        # Get path to where the new inventory will be saved, and coordinates
+            # Create new empty inventory
+            inv = Inventory(
+                networks=[],
+                source="Inventory from AxiSEM3D STATIONS file")
 
-        # Create new empty inventory
-        inv = Inventory(
-            networks=[],
-            source="Inventory from AxiSEM3D STATIONS file")
+            # Open station file
+            stations = (pd.read_csv(self._stations_file_path,
+                        sep=r'\s+',
+                        header=1,
+                        names=["name",
+                            "network",
+                            "latitude",
+                            "longitude",
+                            "useless",
+                            "depth"],
+                        comment='#'))
 
-        # Open station file
-        stations = (pd.read_csv(self._stations_file_path,
-                    delim_whitespace=True,
-                    header=1,
-                    names=["name",
-                           "network",
-                           "latitude",
-                           "longitude",
-                           "useless",
-                           "depth"],
-                    comment='#'))
+            # Iterate over all stations in the stations file
+            for _, station in stations.iterrows():
+                # Create network if not already existent
+                net_exists = False
+                for network in inv:
+                    if network.code == station['network']:
+                        net_exists = True
+                        net = network
+                if net_exists is False:
+                    net = Network(
+                        code=station['network'],
+                        stations=[])
+                    # add new network to inventory
+                    inv.networks.append(net)
 
-        # Iterate over all stations in the stations file
-        for _, station in stations.iterrows():
-            # Create network if not already existent
-            net_exists = False
-            for network in inv:
-                if network.code == station['network']:
-                    net_exists = True
-                    net = network
-            if net_exists is False:
-                net = Network(
-                    code=station['network'],
-                    stations=[])
-                # add new network to inventory
-                inv.networks.append(net)
-
-            # Create station (should be unique!)
-            sta = Station(
-                code=station['name'],
-                latitude=station['latitude'],
-                longitude=station['longitude'],
-                elevation=-station['depth'])
-            net.stations.append(sta)
-
-            # Create the channels
-            for channel in self.detailed_channels:
-                cha = Channel(
-                    code=channel,
-                    location_code="",
+                # Create station (should be unique!)
+                sta = Station(
+                    code=station['name'],
                     latitude=station['latitude'],
                     longitude=station['longitude'],
-                    elevation=-station['depth'],
-                    depth=station['depth'],
-                    azimuth=None,
-                    dip=None,
-                    sample_rate=None)
-                sta.channels.append(cha)
+                    elevation=-station['depth'])
+                net.stations.append(sta)
 
-            # Form the lists that will be used as inputs with read_netcdf
-            # to get the stream of the wavefield data
-            networks.append(station['network'])
-            station_names.append(station['name'])
-            locations.append('')  # Axisem does not use locations
-            channels_list.append(self.detailed_channels)
+                # Create the channels
+                for channel in self.detailed_channels:
+                    cha = Channel(
+                        code=channel,
+                        location_code="",
+                        latitude=station['latitude'],
+                        longitude=station['longitude'],
+                        elevation=-station['depth'],
+                        depth=station['depth'],
+                        azimuth=None,
+                        dip=None,
+                        sample_rate=None)
+                    sta.channels.append(cha)
 
-        return inv
+                # Form the lists that will be used as inputs with read_netcdf
+                # to get the stream of the wavefield data
+                networks.append(station['network'])
+                station_names.append(station['name'])
+                locations.append('')  # Axisem does not use locations
+                channels_list.append(self.detailed_channels)
+
+            self._stored_inventory = inv
+            return inv
+        else:
+            return self._stored_inventory
 
     def obspyfy(self):
         # Create obspyfy folder if not existent already
@@ -404,7 +400,7 @@ class StationOutput(AxiSEM3DOutput):
         cat = self.catalogue
         cat.write(obspyfy_path + '/cat.xml', format='QUAKEML')
 
-        inv = self.get_inventory()
+        inv = self.inventory
         inv_file_name = self._stations_file_name.split('.')[0] + '_inv.xml'
         inv.write(obspyfy_path + '/' + inv_file_name, format="stationxml")
 

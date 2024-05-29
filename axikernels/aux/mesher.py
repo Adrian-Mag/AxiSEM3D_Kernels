@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 import numpy as np
 
-from axisem3d_output.aux.coordinate_transforms import sph2cart, cart2sph
+from ..aux.coordinate_transforms import sph2cart, cart2sph
 
 class Mesh(ABC):
 
@@ -11,7 +11,7 @@ class Mesh(ABC):
 
 
 class SliceMesh(Mesh):
-        
+
     def __init__(self, point1: np.ndarray, point2: np.ndarray, domains: list, resolution: int,
                     coord_in: str='spherical', coord_out: str='spherical') -> None:
         """
@@ -22,11 +22,11 @@ class SliceMesh(Mesh):
         indices within the inplane_DIM1 and inplane_DIM2 matrices. Only the
         physical coordinates of the points within the desired domains are
         outputted alongside their associated indices within the inplane_DIMi
-        matrices. 
+        matrices.
 
         Args:
-            point1 (np.ndarray): The source location [radius, latitude,longitude] in radians. 
-            point2 (np.ndarray): The station location [radius, latitude, longitude] in radians. 
+            point1 (np.ndarray): The source location [radius, latitude,longitude] in radians.
+            point2 (np.ndarray): The station location [radius, latitude, longitude] in radians.
             coord (str): 'spherical' or 'cartesian'
 
         Returns:
@@ -99,7 +99,7 @@ class SliceMesh(Mesh):
 
     def plot_mesh(self):
         return super().plot_mesh()
-    
+
 
 class SphereMesh(Mesh):
 
@@ -115,5 +115,5 @@ class SphereMesh(Mesh):
             lons = np.linspace(-np.pi, np.pi, int(self.resolution * np.sin(lat)))
             for lon in lons:
                 points.append([lat, lon])
-        
+
         self.points =  np.array(points)
