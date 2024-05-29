@@ -1,0 +1,635 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<FDSNStationXML xmlns="http://www.fdsn.org/xml/station/1" schemaVersion="1.2">
+  <Source>Inventory from AxiSEM3D STATIONS file</Source>
+  <Module>ObsPy 1.4.1</Module>
+  <ModuleURI>https://www.obspy.org</ModuleURI>
+  <Created>2024-05-29T12:08:42.193930Z</Created>
+  <Network code="II">
+    <Station code="ABPO">
+      <Latitude unit="DEGREES">-19.018</Latitude>
+      <Longitude unit="DEGREES">47.229</Longitude>
+      <Elevation unit="METERS">-5.3</Elevation>
+      <Site>
+        <Name></Name>
+      </Site>
+      <Channel code="UR" locationCode="">
+        <Latitude unit="DEGREES">-19.018</Latitude>
+        <Longitude unit="DEGREES">47.229</Longitude>
+        <Elevation unit="METERS">-5.3</Elevation>
+        <Depth unit="METERS">5.3</Depth>
+      </Channel>
+      <Channel code="UT" locationCode="">
+        <Latitude unit="DEGREES">-19.018</Latitude>
+        <Longitude unit="DEGREES">47.229</Longitude>
+        <Elevation unit="METERS">-5.3</Elevation>
+        <Depth unit="METERS">5.3</Depth>
+      </Channel>
+      <Channel code="UZ" locationCode="">
+        <Latitude unit="DEGREES">-19.018</Latitude>
+        <Longitude unit="DEGREES">47.229</Longitude>
+        <Elevation unit="METERS">-5.3</Elevation>
+        <Depth unit="METERS">5.3</Depth>
+      </Channel>
+    </Station>
+    <Station code="ALE">
+      <Latitude unit="DEGREES">82.5033</Latitude>
+      <Longitude unit="DEGREES">-62.35</Longitude>
+      <Elevation unit="METERS">-0.0</Elevation>
+      <Site>
+        <Name></Name>
+      </Site>
+      <Channel code="UR" locationCode="">
+        <Latitude unit="DEGREES">82.5033</Latitude>
+        <Longitude unit="DEGREES">-62.35</Longitude>
+        <Elevation unit="METERS">-0.0</Elevation>
+        <Depth unit="METERS">0.0</Depth>
+      </Channel>
+      <Channel code="UT" locationCode="">
+        <Latitude unit="DEGREES">82.5033</Latitude>
+        <Longitude unit="DEGREES">-62.35</Longitude>
+        <Elevation unit="METERS">-0.0</Elevation>
+        <Depth unit="METERS">0.0</Depth>
+      </Channel>
+      <Channel code="UZ" locationCode="">
+        <Latitude unit="DEGREES">82.5033</Latitude>
+        <Longitude unit="DEGREES">-62.35</Longitude>
+        <Elevation unit="METERS">-0.0</Elevation>
+        <Depth unit="METERS">0.0</Depth>
+      </Channel>
+    </Station>
+    <Station code="ARU">
+      <Latitude unit="DEGREES">56.4302</Latitude>
+      <Longitude unit="DEGREES">58.5625</Longitude>
+      <Elevation unit="METERS">-0.0</Elevation>
+      <Site>
+        <Name></Name>
+      </Site>
+      <Channel code="UR" locationCode="">
+        <Latitude unit="DEGREES">56.4302</Latitude>
+        <Longitude unit="DEGREES">58.5625</Longitude>
+        <Elevation unit="METERS">-0.0</Elevation>
+        <Depth unit="METERS">0.0</Depth>
+      </Channel>
+      <Channel code="UT" locationCode="">
+        <Latitude unit="DEGREES">56.4302</Latitude>
+        <Longitude unit="DEGREES">58.5625</Longitude>
+        <Elevation unit="METERS">-0.0</Elevation>
+        <Depth unit="METERS">0.0</Depth>
+      </Channel>
+      <Channel code="UZ" locationCode="">
+        <Latitude unit="DEGREES">56.4302</Latitude>
+        <Longitude unit="DEGREES">58.5625</Longitude>
+        <Elevation unit="METERS">-0.0</Elevation>
+        <Depth unit="METERS">0.0</Depth>
+      </Channel>
+    </Station>
+    <Station code="ASCN">
+      <Latitude unit="DEGREES">-7.9327</Latitude>
+      <Longitude unit="DEGREES">-14.3601</Longitude>
+      <Elevation unit="METERS">-100.0</Elevation>
+      <Site>
+        <Name></Name>
+      </Site>
+      <Channel code="UR" locationCode="">
+        <Latitude unit="DEGREES">-7.9327</Latitude>
+        <Longitude unit="DEGREES">-14.3601</Longitude>
+        <Elevation unit="METERS">-100.0</Elevation>
+        <Depth unit="METERS">100.0</Depth>
+      </Channel>
+      <Channel code="UT" locationCode="">
+        <Latitude unit="DEGREES">-7.9327</Latitude>
+        <Longitude unit="DEGREES">-14.3601</Longitude>
+        <Elevation unit="METERS">-100.0</Elevation>
+        <Depth unit="METERS">100.0</Depth>
+      </Channel>
+      <Channel code="UZ" locationCode="">
+        <Latitude unit="DEGREES">-7.9327</Latitude>
+        <Longitude unit="DEGREES">-14.3601</Longitude>
+        <Elevation unit="METERS">-100.0</Elevation>
+        <Depth unit="METERS">100.0</Depth>
+      </Channel>
+    </Station>
+    <Station code="BFO">
+      <Latitude unit="DEGREES">48.3319</Latitude>
+      <Longitude unit="DEGREES">8.3311</Longitude>
+      <Elevation unit="METERS">-0.0</Elevation>
+      <Site>
+        <Name></Name>
+      </Site>
+      <Channel code="UR" locationCode="">
+        <Latitude unit="DEGREES">48.3319</Latitude>
+        <Longitude unit="DEGREES">8.3311</Longitude>
+        <Elevation unit="METERS">-0.0</Elevation>
+        <Depth unit="METERS">0.0</Depth>
+      </Channel>
+      <Channel code="UT" locationCode="">
+        <Latitude unit="DEGREES">48.3319</Latitude>
+        <Longitude unit="DEGREES">8.3311</Longitude>
+        <Elevation unit="METERS">-0.0</Elevation>
+        <Depth unit="METERS">0.0</Depth>
+      </Channel>
+      <Channel code="UZ" locationCode="">
+        <Latitude unit="DEGREES">48.3319</Latitude>
+        <Longitude unit="DEGREES">8.3311</Longitude>
+        <Elevation unit="METERS">-0.0</Elevation>
+        <Depth unit="METERS">0.0</Depth>
+      </Channel>
+    </Station>
+    <Station code="BORG">
+      <Latitude unit="DEGREES">64.7474</Latitude>
+      <Longitude unit="DEGREES">-21.3268</Longitude>
+      <Elevation unit="METERS">-95.0</Elevation>
+      <Site>
+        <Name></Name>
+      </Site>
+      <Channel code="UR" locationCode="">
+        <Latitude unit="DEGREES">64.7474</Latitude>
+        <Longitude unit="DEGREES">-21.3268</Longitude>
+        <Elevation unit="METERS">-95.0</Elevation>
+        <Depth unit="METERS">95.0</Depth>
+      </Channel>
+      <Channel code="UT" locationCode="">
+        <Latitude unit="DEGREES">64.7474</Latitude>
+        <Longitude unit="DEGREES">-21.3268</Longitude>
+        <Elevation unit="METERS">-95.0</Elevation>
+        <Depth unit="METERS">95.0</Depth>
+      </Channel>
+      <Channel code="UZ" locationCode="">
+        <Latitude unit="DEGREES">64.7474</Latitude>
+        <Longitude unit="DEGREES">-21.3268</Longitude>
+        <Elevation unit="METERS">-95.0</Elevation>
+        <Depth unit="METERS">95.0</Depth>
+      </Channel>
+    </Station>
+    <Station code="BRVK">
+      <Latitude unit="DEGREES">53.0581</Latitude>
+      <Longitude unit="DEGREES">70.2828</Longitude>
+      <Elevation unit="METERS">-15.0</Elevation>
+      <Site>
+        <Name></Name>
+      </Site>
+      <Channel code="UR" locationCode="">
+        <Latitude unit="DEGREES">53.0581</Latitude>
+        <Longitude unit="DEGREES">70.2828</Longitude>
+        <Elevation unit="METERS">-15.0</Elevation>
+        <Depth unit="METERS">15.0</Depth>
+      </Channel>
+      <Channel code="UT" locationCode="">
+        <Latitude unit="DEGREES">53.0581</Latitude>
+        <Longitude unit="DEGREES">70.2828</Longitude>
+        <Elevation unit="METERS">-15.0</Elevation>
+        <Depth unit="METERS">15.0</Depth>
+      </Channel>
+      <Channel code="UZ" locationCode="">
+        <Latitude unit="DEGREES">53.0581</Latitude>
+        <Longitude unit="DEGREES">70.2828</Longitude>
+        <Elevation unit="METERS">-15.0</Elevation>
+        <Depth unit="METERS">15.0</Depth>
+      </Channel>
+    </Station>
+    <Station code="CMLA">
+      <Latitude unit="DEGREES">37.7637</Latitude>
+      <Longitude unit="DEGREES">-25.5243</Longitude>
+      <Elevation unit="METERS">-7.0</Elevation>
+      <Site>
+        <Name></Name>
+      </Site>
+      <Channel code="UR" locationCode="">
+        <Latitude unit="DEGREES">37.7637</Latitude>
+        <Longitude unit="DEGREES">-25.5243</Longitude>
+        <Elevation unit="METERS">-7.0</Elevation>
+        <Depth unit="METERS">7.0</Depth>
+      </Channel>
+      <Channel code="UT" locationCode="">
+        <Latitude unit="DEGREES">37.7637</Latitude>
+        <Longitude unit="DEGREES">-25.5243</Longitude>
+        <Elevation unit="METERS">-7.0</Elevation>
+        <Depth unit="METERS">7.0</Depth>
+      </Channel>
+      <Channel code="UZ" locationCode="">
+        <Latitude unit="DEGREES">37.7637</Latitude>
+        <Longitude unit="DEGREES">-25.5243</Longitude>
+        <Elevation unit="METERS">-7.0</Elevation>
+        <Depth unit="METERS">7.0</Depth>
+      </Channel>
+    </Station>
+    <Station code="COCO">
+      <Latitude unit="DEGREES">-12.1901</Latitude>
+      <Longitude unit="DEGREES">96.8349</Longitude>
+      <Elevation unit="METERS">-70.0</Elevation>
+      <Site>
+        <Name></Name>
+      </Site>
+      <Channel code="UR" locationCode="">
+        <Latitude unit="DEGREES">-12.1901</Latitude>
+        <Longitude unit="DEGREES">96.8349</Longitude>
+        <Elevation unit="METERS">-70.0</Elevation>
+        <Depth unit="METERS">70.0</Depth>
+      </Channel>
+      <Channel code="UT" locationCode="">
+        <Latitude unit="DEGREES">-12.1901</Latitude>
+        <Longitude unit="DEGREES">96.8349</Longitude>
+        <Elevation unit="METERS">-70.0</Elevation>
+        <Depth unit="METERS">70.0</Depth>
+      </Channel>
+      <Channel code="UZ" locationCode="">
+        <Latitude unit="DEGREES">-12.1901</Latitude>
+        <Longitude unit="DEGREES">96.8349</Longitude>
+        <Elevation unit="METERS">-70.0</Elevation>
+        <Depth unit="METERS">70.0</Depth>
+      </Channel>
+    </Station>
+    <Station code="DGAR">
+      <Latitude unit="DEGREES">-7.4121</Latitude>
+      <Longitude unit="DEGREES">72.4525</Longitude>
+      <Elevation unit="METERS">-2.0</Elevation>
+      <Site>
+        <Name></Name>
+      </Site>
+      <Channel code="UR" locationCode="">
+        <Latitude unit="DEGREES">-7.4121</Latitude>
+        <Longitude unit="DEGREES">72.4525</Longitude>
+        <Elevation unit="METERS">-2.0</Elevation>
+        <Depth unit="METERS">2.0</Depth>
+      </Channel>
+      <Channel code="UT" locationCode="">
+        <Latitude unit="DEGREES">-7.4121</Latitude>
+        <Longitude unit="DEGREES">72.4525</Longitude>
+        <Elevation unit="METERS">-2.0</Elevation>
+        <Depth unit="METERS">2.0</Depth>
+      </Channel>
+      <Channel code="UZ" locationCode="">
+        <Latitude unit="DEGREES">-7.4121</Latitude>
+        <Longitude unit="DEGREES">72.4525</Longitude>
+        <Elevation unit="METERS">-2.0</Elevation>
+        <Depth unit="METERS">2.0</Depth>
+      </Channel>
+    </Station>
+    <Station code="EFI">
+      <Latitude unit="DEGREES">-51.6753</Latitude>
+      <Longitude unit="DEGREES">-58.0637</Longitude>
+      <Elevation unit="METERS">-80.0</Elevation>
+      <Site>
+        <Name></Name>
+      </Site>
+      <Channel code="UR" locationCode="">
+        <Latitude unit="DEGREES">-51.6753</Latitude>
+        <Longitude unit="DEGREES">-58.0637</Longitude>
+        <Elevation unit="METERS">-80.0</Elevation>
+        <Depth unit="METERS">80.0</Depth>
+      </Channel>
+      <Channel code="UT" locationCode="">
+        <Latitude unit="DEGREES">-51.6753</Latitude>
+        <Longitude unit="DEGREES">-58.0637</Longitude>
+        <Elevation unit="METERS">-80.0</Elevation>
+        <Depth unit="METERS">80.0</Depth>
+      </Channel>
+      <Channel code="UZ" locationCode="">
+        <Latitude unit="DEGREES">-51.6753</Latitude>
+        <Longitude unit="DEGREES">-58.0637</Longitude>
+        <Elevation unit="METERS">-80.0</Elevation>
+        <Depth unit="METERS">80.0</Depth>
+      </Channel>
+    </Station>
+    <Station code="ERM">
+      <Latitude unit="DEGREES">42.015</Latitude>
+      <Longitude unit="DEGREES">143.1572</Longitude>
+      <Elevation unit="METERS">-0.0</Elevation>
+      <Site>
+        <Name></Name>
+      </Site>
+      <Channel code="UR" locationCode="">
+        <Latitude unit="DEGREES">42.015</Latitude>
+        <Longitude unit="DEGREES">143.1572</Longitude>
+        <Elevation unit="METERS">-0.0</Elevation>
+        <Depth unit="METERS">0.0</Depth>
+      </Channel>
+      <Channel code="UT" locationCode="">
+        <Latitude unit="DEGREES">42.015</Latitude>
+        <Longitude unit="DEGREES">143.1572</Longitude>
+        <Elevation unit="METERS">-0.0</Elevation>
+        <Depth unit="METERS">0.0</Depth>
+      </Channel>
+      <Channel code="UZ" locationCode="">
+        <Latitude unit="DEGREES">42.015</Latitude>
+        <Longitude unit="DEGREES">143.1572</Longitude>
+        <Elevation unit="METERS">-0.0</Elevation>
+        <Depth unit="METERS">0.0</Depth>
+      </Channel>
+    </Station>
+    <Station code="ESK">
+      <Latitude unit="DEGREES">55.3167</Latitude>
+      <Longitude unit="DEGREES">-3.205</Longitude>
+      <Elevation unit="METERS">-0.0</Elevation>
+      <Site>
+        <Name></Name>
+      </Site>
+      <Channel code="UR" locationCode="">
+        <Latitude unit="DEGREES">55.3167</Latitude>
+        <Longitude unit="DEGREES">-3.205</Longitude>
+        <Elevation unit="METERS">-0.0</Elevation>
+        <Depth unit="METERS">0.0</Depth>
+      </Channel>
+      <Channel code="UT" locationCode="">
+        <Latitude unit="DEGREES">55.3167</Latitude>
+        <Longitude unit="DEGREES">-3.205</Longitude>
+        <Elevation unit="METERS">-0.0</Elevation>
+        <Depth unit="METERS">0.0</Depth>
+      </Channel>
+      <Channel code="UZ" locationCode="">
+        <Latitude unit="DEGREES">55.3167</Latitude>
+        <Longitude unit="DEGREES">-3.205</Longitude>
+        <Elevation unit="METERS">-0.0</Elevation>
+        <Depth unit="METERS">0.0</Depth>
+      </Channel>
+    </Station>
+    <Station code="FFC">
+      <Latitude unit="DEGREES">54.725</Latitude>
+      <Longitude unit="DEGREES">-101.9783</Longitude>
+      <Elevation unit="METERS">-0.0</Elevation>
+      <Site>
+        <Name></Name>
+      </Site>
+      <Channel code="UR" locationCode="">
+        <Latitude unit="DEGREES">54.725</Latitude>
+        <Longitude unit="DEGREES">-101.9783</Longitude>
+        <Elevation unit="METERS">-0.0</Elevation>
+        <Depth unit="METERS">0.0</Depth>
+      </Channel>
+      <Channel code="UT" locationCode="">
+        <Latitude unit="DEGREES">54.725</Latitude>
+        <Longitude unit="DEGREES">-101.9783</Longitude>
+        <Elevation unit="METERS">-0.0</Elevation>
+        <Depth unit="METERS">0.0</Depth>
+      </Channel>
+      <Channel code="UZ" locationCode="">
+        <Latitude unit="DEGREES">54.725</Latitude>
+        <Longitude unit="DEGREES">-101.9783</Longitude>
+        <Elevation unit="METERS">-0.0</Elevation>
+        <Depth unit="METERS">0.0</Depth>
+      </Channel>
+    </Station>
+    <Station code="GAR">
+      <Latitude unit="DEGREES">39.0</Latitude>
+      <Longitude unit="DEGREES">70.3167</Longitude>
+      <Elevation unit="METERS">-0.0</Elevation>
+      <Site>
+        <Name></Name>
+      </Site>
+      <Channel code="UR" locationCode="">
+        <Latitude unit="DEGREES">39.0</Latitude>
+        <Longitude unit="DEGREES">70.3167</Longitude>
+        <Elevation unit="METERS">-0.0</Elevation>
+        <Depth unit="METERS">0.0</Depth>
+      </Channel>
+      <Channel code="UT" locationCode="">
+        <Latitude unit="DEGREES">39.0</Latitude>
+        <Longitude unit="DEGREES">70.3167</Longitude>
+        <Elevation unit="METERS">-0.0</Elevation>
+        <Depth unit="METERS">0.0</Depth>
+      </Channel>
+      <Channel code="UZ" locationCode="">
+        <Latitude unit="DEGREES">39.0</Latitude>
+        <Longitude unit="DEGREES">70.3167</Longitude>
+        <Elevation unit="METERS">-0.0</Elevation>
+        <Depth unit="METERS">0.0</Depth>
+      </Channel>
+    </Station>
+    <Station code="HOPE">
+      <Latitude unit="DEGREES">-54.2836</Latitude>
+      <Longitude unit="DEGREES">-36.4879</Longitude>
+      <Elevation unit="METERS">-0.0</Elevation>
+      <Site>
+        <Name></Name>
+      </Site>
+      <Channel code="UR" locationCode="">
+        <Latitude unit="DEGREES">-54.2836</Latitude>
+        <Longitude unit="DEGREES">-36.4879</Longitude>
+        <Elevation unit="METERS">-0.0</Elevation>
+        <Depth unit="METERS">0.0</Depth>
+      </Channel>
+      <Channel code="UT" locationCode="">
+        <Latitude unit="DEGREES">-54.2836</Latitude>
+        <Longitude unit="DEGREES">-36.4879</Longitude>
+        <Elevation unit="METERS">-0.0</Elevation>
+        <Depth unit="METERS">0.0</Depth>
+      </Channel>
+      <Channel code="UZ" locationCode="">
+        <Latitude unit="DEGREES">-54.2836</Latitude>
+        <Longitude unit="DEGREES">-36.4879</Longitude>
+        <Elevation unit="METERS">-0.0</Elevation>
+        <Depth unit="METERS">0.0</Depth>
+      </Channel>
+    </Station>
+    <Station code="JTS">
+      <Latitude unit="DEGREES">10.2908</Latitude>
+      <Longitude unit="DEGREES">-84.9525</Longitude>
+      <Elevation unit="METERS">-0.0</Elevation>
+      <Site>
+        <Name></Name>
+      </Site>
+      <Channel code="UR" locationCode="">
+        <Latitude unit="DEGREES">10.2908</Latitude>
+        <Longitude unit="DEGREES">-84.9525</Longitude>
+        <Elevation unit="METERS">-0.0</Elevation>
+        <Depth unit="METERS">0.0</Depth>
+      </Channel>
+      <Channel code="UT" locationCode="">
+        <Latitude unit="DEGREES">10.2908</Latitude>
+        <Longitude unit="DEGREES">-84.9525</Longitude>
+        <Elevation unit="METERS">-0.0</Elevation>
+        <Depth unit="METERS">0.0</Depth>
+      </Channel>
+      <Channel code="UZ" locationCode="">
+        <Latitude unit="DEGREES">10.2908</Latitude>
+        <Longitude unit="DEGREES">-84.9525</Longitude>
+        <Elevation unit="METERS">-0.0</Elevation>
+        <Depth unit="METERS">0.0</Depth>
+      </Channel>
+    </Station>
+    <Station code="KAPI">
+      <Latitude unit="DEGREES">-5.0142</Latitude>
+      <Longitude unit="DEGREES">119.7517</Longitude>
+      <Elevation unit="METERS">-100.0</Elevation>
+      <Site>
+        <Name></Name>
+      </Site>
+      <Channel code="UR" locationCode="">
+        <Latitude unit="DEGREES">-5.0142</Latitude>
+        <Longitude unit="DEGREES">119.7517</Longitude>
+        <Elevation unit="METERS">-100.0</Elevation>
+        <Depth unit="METERS">100.0</Depth>
+      </Channel>
+      <Channel code="UT" locationCode="">
+        <Latitude unit="DEGREES">-5.0142</Latitude>
+        <Longitude unit="DEGREES">119.7517</Longitude>
+        <Elevation unit="METERS">-100.0</Elevation>
+        <Depth unit="METERS">100.0</Depth>
+      </Channel>
+      <Channel code="UZ" locationCode="">
+        <Latitude unit="DEGREES">-5.0142</Latitude>
+        <Longitude unit="DEGREES">119.7517</Longitude>
+        <Elevation unit="METERS">-100.0</Elevation>
+        <Depth unit="METERS">100.0</Depth>
+      </Channel>
+    </Station>
+    <Station code="KDAK">
+      <Latitude unit="DEGREES">57.7828</Latitude>
+      <Longitude unit="DEGREES">-152.5835</Longitude>
+      <Elevation unit="METERS">-5.5</Elevation>
+      <Site>
+        <Name></Name>
+      </Site>
+      <Channel code="UR" locationCode="">
+        <Latitude unit="DEGREES">57.7828</Latitude>
+        <Longitude unit="DEGREES">-152.5835</Longitude>
+        <Elevation unit="METERS">-5.5</Elevation>
+        <Depth unit="METERS">5.5</Depth>
+      </Channel>
+      <Channel code="UT" locationCode="">
+        <Latitude unit="DEGREES">57.7828</Latitude>
+        <Longitude unit="DEGREES">-152.5835</Longitude>
+        <Elevation unit="METERS">-5.5</Elevation>
+        <Depth unit="METERS">5.5</Depth>
+      </Channel>
+      <Channel code="UZ" locationCode="">
+        <Latitude unit="DEGREES">57.7828</Latitude>
+        <Longitude unit="DEGREES">-152.5835</Longitude>
+        <Elevation unit="METERS">-5.5</Elevation>
+        <Depth unit="METERS">5.5</Depth>
+      </Channel>
+    </Station>
+  </Network>
+  <Network code="IU">
+    <Station code="SBA">
+      <Latitude unit="DEGREES">-77.8492</Latitude>
+      <Longitude unit="DEGREES">166.7572</Longitude>
+      <Elevation unit="METERS">-2.0</Elevation>
+      <Site>
+        <Name></Name>
+      </Site>
+      <Channel code="UR" locationCode="">
+        <Latitude unit="DEGREES">-77.8492</Latitude>
+        <Longitude unit="DEGREES">166.7572</Longitude>
+        <Elevation unit="METERS">-2.0</Elevation>
+        <Depth unit="METERS">2.0</Depth>
+      </Channel>
+      <Channel code="UT" locationCode="">
+        <Latitude unit="DEGREES">-77.8492</Latitude>
+        <Longitude unit="DEGREES">166.7572</Longitude>
+        <Elevation unit="METERS">-2.0</Elevation>
+        <Depth unit="METERS">2.0</Depth>
+      </Channel>
+      <Channel code="UZ" locationCode="">
+        <Latitude unit="DEGREES">-77.8492</Latitude>
+        <Longitude unit="DEGREES">166.7572</Longitude>
+        <Elevation unit="METERS">-2.0</Elevation>
+        <Depth unit="METERS">2.0</Depth>
+      </Channel>
+    </Station>
+    <Station code="SDV">
+      <Latitude unit="DEGREES">8.8839</Latitude>
+      <Longitude unit="DEGREES">-70.634</Longitude>
+      <Elevation unit="METERS">-32.0</Elevation>
+      <Site>
+        <Name></Name>
+      </Site>
+      <Channel code="UR" locationCode="">
+        <Latitude unit="DEGREES">8.8839</Latitude>
+        <Longitude unit="DEGREES">-70.634</Longitude>
+        <Elevation unit="METERS">-32.0</Elevation>
+        <Depth unit="METERS">32.0</Depth>
+      </Channel>
+      <Channel code="UT" locationCode="">
+        <Latitude unit="DEGREES">8.8839</Latitude>
+        <Longitude unit="DEGREES">-70.634</Longitude>
+        <Elevation unit="METERS">-32.0</Elevation>
+        <Depth unit="METERS">32.0</Depth>
+      </Channel>
+      <Channel code="UZ" locationCode="">
+        <Latitude unit="DEGREES">8.8839</Latitude>
+        <Longitude unit="DEGREES">-70.634</Longitude>
+        <Elevation unit="METERS">-32.0</Elevation>
+        <Depth unit="METERS">32.0</Depth>
+      </Channel>
+    </Station>
+    <Station code="SFJD">
+      <Latitude unit="DEGREES">66.9961</Latitude>
+      <Longitude unit="DEGREES">-50.6208</Longitude>
+      <Elevation unit="METERS">-1.0</Elevation>
+      <Site>
+        <Name></Name>
+      </Site>
+      <Channel code="UR" locationCode="">
+        <Latitude unit="DEGREES">66.9961</Latitude>
+        <Longitude unit="DEGREES">-50.6208</Longitude>
+        <Elevation unit="METERS">-1.0</Elevation>
+        <Depth unit="METERS">1.0</Depth>
+      </Channel>
+      <Channel code="UT" locationCode="">
+        <Latitude unit="DEGREES">66.9961</Latitude>
+        <Longitude unit="DEGREES">-50.6208</Longitude>
+        <Elevation unit="METERS">-1.0</Elevation>
+        <Depth unit="METERS">1.0</Depth>
+      </Channel>
+      <Channel code="UZ" locationCode="">
+        <Latitude unit="DEGREES">66.9961</Latitude>
+        <Longitude unit="DEGREES">-50.6208</Longitude>
+        <Elevation unit="METERS">-1.0</Elevation>
+        <Depth unit="METERS">1.0</Depth>
+      </Channel>
+    </Station>
+    <Station code="SJG">
+      <Latitude unit="DEGREES">18.1091</Latitude>
+      <Longitude unit="DEGREES">-66.15</Longitude>
+      <Elevation unit="METERS">-0.0</Elevation>
+      <Site>
+        <Name></Name>
+      </Site>
+      <Channel code="UR" locationCode="">
+        <Latitude unit="DEGREES">18.1091</Latitude>
+        <Longitude unit="DEGREES">-66.15</Longitude>
+        <Elevation unit="METERS">-0.0</Elevation>
+        <Depth unit="METERS">0.0</Depth>
+      </Channel>
+      <Channel code="UT" locationCode="">
+        <Latitude unit="DEGREES">18.1091</Latitude>
+        <Longitude unit="DEGREES">-66.15</Longitude>
+        <Elevation unit="METERS">-0.0</Elevation>
+        <Depth unit="METERS">0.0</Depth>
+      </Channel>
+      <Channel code="UZ" locationCode="">
+        <Latitude unit="DEGREES">18.1091</Latitude>
+        <Longitude unit="DEGREES">-66.15</Longitude>
+        <Elevation unit="METERS">-0.0</Elevation>
+        <Depth unit="METERS">0.0</Depth>
+      </Channel>
+    </Station>
+    <Station code="SLBS">
+      <Latitude unit="DEGREES">23.6858</Latitude>
+      <Longitude unit="DEGREES">-109.9443</Longitude>
+      <Elevation unit="METERS">-0.0</Elevation>
+      <Site>
+        <Name></Name>
+      </Site>
+      <Channel code="UR" locationCode="">
+        <Latitude unit="DEGREES">23.6858</Latitude>
+        <Longitude unit="DEGREES">-109.9443</Longitude>
+        <Elevation unit="METERS">-0.0</Elevation>
+        <Depth unit="METERS">0.0</Depth>
+      </Channel>
+      <Channel code="UT" locationCode="">
+        <Latitude unit="DEGREES">23.6858</Latitude>
+        <Longitude unit="DEGREES">-109.9443</Longitude>
+        <Elevation unit="METERS">-0.0</Elevation>
+        <Depth unit="METERS">0.0</Depth>
+      </Channel>
+      <Channel code="UZ" locationCode="">
+        <Latitude unit="DEGREES">23.6858</Latitude>
+        <Longitude unit="DEGREES">-109.9443</Longitude>
+        <Elevation unit="METERS">-0.0</Elevation>
+        <Depth unit="METERS">0.0</Depth>
+      </Channel>
+    </Station>
+  </Network>
+</FDSNStationXML>
