@@ -52,6 +52,7 @@ class ElementOutput(AxiSEM3DOutput):
 
         # Load element groups information from the inparam output
         self.element_groups_info = self._load_element_groups_info()
+        self.element_groups = list(self.element_groups_info.keys())
 
         # Get lat lon of the event located on the axis
         self.source_lat, self.source_lon, self.source_depth = (
@@ -59,7 +60,7 @@ class ElementOutput(AxiSEM3DOutput):
         )
 
         # Create the metadata for each element group
-        self._create_element_metadata()
+        self._load_elements_info()
 
         # Compute rotation matrix
         self._rotation_matrix = self._compute_rotation_matrix()
@@ -114,7 +115,7 @@ class ElementOutput(AxiSEM3DOutput):
             source_depth = float(source.get('location', {}).get('depth', 0.0))
         return source_lat, source_lon, source_depth
 
-    def _create_element_metadata(self) -> None:
+    def _load_elements_info(self) -> None:
         """
         Populates the 'metadata' field for each element in
         `element_groups_info`.
@@ -136,9 +137,11 @@ class ElementOutput(AxiSEM3DOutput):
             Any exceptions raised by `_read_element_metadata`.
 
         """
-        for element in self.element_groups_info:
-            metadata = self._read_element_metadata(element)
-            self.element_groups_info[element]['metadata'] = {
+        for element_group in self.element_groups_info:
+            metadata = self._read_element_metadata(element_group)
+            # at this point we have all the information from the inparam.output
+            # about each element group, except for the information aboout the actual data
+            self.element_groups_info[element_group]['metadata'] = {
                 'na_grid': metadata[0],
                 'data_time': metadata[1],
                 'list_element_na': metadata[2],
@@ -151,12 +154,12 @@ class ElementOutput(AxiSEM3DOutput):
 
             # Replace the numerical indicators of coordinates with letters
             # based on the coordinate system
-            coordinate_frame = self.element_groups_info[element]['wavefields']['coordinate_frame'] # noqa
-            self.element_groups_info[element]['metadata']['detailed_channels'] = [ # noqa
+            coordinate_frame = self.element_groups_info[element_group]['wavefields']['coordinate_frame'] # noqa
+            self.element_groups_info[element_group]['metadata']['detailed_channels'] = [ # noqa
                 element.replace('1', coordinate_frame[0])
                        .replace('2', coordinate_frame[1])
                        .replace('3', coordinate_frame[2])
-                for element in self.element_groups_info[element]['metadata']['detailed_channels'] # noqa
+                for element in self.element_groups_info[element_group]['metadata']['detailed_channels'] # noqa
             ]
 
     def _compute_rotation_matrix(self):
@@ -304,7 +307,7 @@ class ElementOutput(AxiSEM3DOutput):
             point = cart2polar(point[0, 0], point[0, 1])
             point[0, 1] += np.pi/2
             element_group = self._separate_by_inplane_domain(point.reshape(1, 2)) # noqa
-            key = list(self.element_groups_info.keys())[element_group[0]]
+            key = self.element_groups[element_group[0]]
             for channel in self.element_groups_info[key]['metadata']['detailed_channels']: # noqa
                 cha = Channel(
                     code=channel,
@@ -371,7 +374,7 @@ class ElementOutput(AxiSEM3DOutput):
             point = cart2polar(point[0,0], point[0,1])
             point[0,1] += np.pi/2
             element_group = self._separate_by_inplane_domain(point.reshape(1,2))
-            key = list(self.element_groups_info.keys())[element_group[0]]
+            key = self.element_groups[element_group[0]]
 
             # get the data at this station (assuming RTZ components)
             wave_data = self.load_data(points=np.array([starad, stalat, stalon]),
@@ -476,9 +479,10 @@ class ElementOutput(AxiSEM3DOutput):
 
         return stream
 
-    def load_data(self, points: np.ndarray, frame: str = 'geographic',
+    def load_data(self, points: np.ndarray,
+                  channels: list, time_slices: list = None,
+                  frame: str = 'geographic',
                   coords: str = 'spherical', in_deg: bool = True,
-                  channels: list = None, time_slices: list = None,
                   batch_size: int = 1000):
         # Only options for coords are geographic+spherical,
         # geographic+cartesian, source+cylindrical and source+spherical
@@ -513,14 +517,15 @@ class ElementOutput(AxiSEM3DOutput):
         inplane_points[:, 1] += np.pi/2
 
         # Separate inplane points by the element group they are part of
-        group_mapping = self._separate_by_inplane_domain(inplane_points)
+        point_group_mapping = self._separate_by_inplane_domain(inplane_points)
 
         # Create channel slices and time slices if not given. Look at what
         # groups are present and make sure that all groups have the needed
         # channels in the same position
         if time_slices is None:
             time_slices = np.arange(len(self.element_groups_info[
-                next(iter(self.element_groups_info))]['metadata']['data_time']))
+                self.element_groups[0]
+            ]['metadata']['data_time']))
 
         # Initialize the final result
         final_result = np.ones((len(points), len(channels), len(time_slices)))
@@ -539,10 +544,12 @@ class ElementOutput(AxiSEM3DOutput):
                   unit="point") as pbar:
             for group_index, element_group in enumerate(
                              self.element_groups_info):
-                point_index = np.where(group_mapping == group_index)
+                # These two lines pick only the points that are in the current
+                # element group
+                point_index = np.where(point_group_mapping == group_index)
                 group_points = points[point_index]
                 if len(group_points) != 0:
-                    group = list(self.element_groups_info.keys())[group_index]
+                    group = self.element_groups[group_index]
                     channel_slices = self._channel_slices(channels, group)
                     # create batches at element group level
                     num_batches = len(group_points) // batch_size
@@ -622,8 +629,9 @@ class ElementOutput(AxiSEM3DOutput):
         return np.array(group_mapping)
 
     def load_data_from_element_group(self, points: np.ndarray, group: str,
-                                    channel_slices: list=None, time_slices: list=None,
-                                    pbar=None):
+                                     channel_slices: list = None,
+                                     time_slices: list = None,
+                                     pbar=None):
         # All points must be from the same element group!!!
 
         # Initialize the final result
@@ -934,7 +942,8 @@ class ElementOutput(AxiSEM3DOutput):
         if domains is None:
             domains = []
             for element_group in self.element_groups_info.values():
-                domains.append(element_group['elements']['vertical_range'] + [-2*np.pi, 2*np.pi])
+                r_min, r_max = map(float, element_group['elements']['vertical_range'])
+                domains.append([r_min, r_max] + [-2*np.pi, 2*np.pi])
         domains = np.array(domains)
 
         # Create source and station if none were given
@@ -1131,19 +1140,20 @@ class ElementOutput(AxiSEM3DOutput):
             nc_files.append(xr.open_dataset(os.path.join(path_to_element_group,
                                                          nc_fname)))
 
-        # variables that are the same in the datasets
-        # read Na grid (all azimuthal dimensions)
+        # Variables that are the same in the datasets
+        # Read Na grid (all azimuthal dimensions)
         na_grid = nc_files[0].data_vars['list_na_grid'].values.astype(int)
 
-        # read time
+        # Read time
         data_time = nc_files[0].data_vars['data_time'].values
 
-        # variables to be concatenated over the datasets minud the data itself
+        # variables to be concatenated over the datasets minus the data itself
         # define empty lists of xarray.DataArray objects
         xda_list_element_na = []
         xda_list_element_coords = []
         dict_xda_list_element = {}
-        detailed_channels = [str_byte.decode('utf-8') for str_byte in nc_files[0].list_channel.data]
+        detailed_channels = [str_byte.decode('utf-8') for
+                             str_byte in nc_files[0].list_channel.data]
         elements_index_limits = [0]
         index_limit = 0
         # dict_xda_data_wave = {}
@@ -1151,7 +1161,7 @@ class ElementOutput(AxiSEM3DOutput):
             dict_xda_list_element[nag] = []
 
         # loop over nc files
-        for i, nc_file in enumerate(nc_files):
+        for _, nc_file in enumerate(nc_files):
             # append DataArrays
             index_limit += nc_file.sizes['dim_element']
             elements_index_limits.append(index_limit)
