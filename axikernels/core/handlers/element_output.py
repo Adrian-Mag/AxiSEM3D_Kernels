@@ -225,7 +225,7 @@ class ElementOutput(AxiSEM3DOutput):
         )
         fig.show()
 
-    def obspyfy(self, path_to_station_file: str):
+    def obspyfy(self, path_to_station_file: str, channels: list):
         # Create obspyfy folder if not existent already
         obspyfy_path = self.path_to_elements_output + '/obspyfied'
         if not os.path.exists(obspyfy_path):
@@ -238,7 +238,7 @@ class ElementOutput(AxiSEM3DOutput):
         inv.write(obspyfy_path + '/' + stations_file_name + '_inv.xml',
                   format="stationxml")
 
-        stream = self.stream_STA(path_to_station_file)
+        stream = self.stream_STA(path_to_station_file, channels)
         stream.write(obspyfy_path + '/' + stations_file_name + '.mseed',
                      format="MSEED")
 
@@ -331,7 +331,7 @@ class ElementOutput(AxiSEM3DOutput):
         return inv
 
     def stream_STA(self, path_to_station_file: str,
-                   channels: list = None,
+                   channels: list,
                    time_limits: list = None) -> obspy.Stream:
         """Takes in the path to a station file used for axisem3d
         and returns a stream with the wavefields computed at all stations
@@ -357,43 +357,35 @@ class ElementOutput(AxiSEM3DOutput):
                            "latitude",
                            "longitude",
                            "useless",
-                           "depth"]))
+                           "depth"],
+                    comment='#'))
         # initiate stream that will hold data
-        stream = obspy.Stream()
+        points = []
         for _, station in stations.iterrows():
             stalat = station['latitude']
             stalon = station['longitude']
             stadepth = station['depth']
             starad = self.Domain_Radius - stadepth
+            points.append([starad, stalat, stalon])
+        points = np.array(points)
 
-            # Find the element group of this point
-            point = np.array([starad, stalat, stalon]).reshape(1,3)
-            point = sph2cart(point)
-            point = cart2cyl(cart_geo2cart_src(points=point,
-                                                rotation_matrix=self._rotation_matrix))
-            point = cart2polar(point[0,0], point[0,1])
-            point[0,1] += np.pi/2
-            element_group = self._separate_by_inplane_domain(point.reshape(1,2))
-            key = self.element_groups[element_group[0]]
+        # get the data at this station (assuming RTZ components)
+        wave_data = self.load_data(points=points,
+                                   channels=channels,
+                                   time_slices=time_slices)
+        # Construct metadata
+        stream = obspy.Stream()
+        first_key = self.element_groups[0]
+        data_time = self.element_groups_info[first_key]['metadata']['data_time']
+        delta = data_time[1] - data_time[0]
+        npts = len(data_time)
 
-            # get the data at this station (assuming RTZ components)
-            wave_data = self.load_data(points=np.array([starad, stalat, stalon]),
-                                        channels=channels,
-                                        time_slices=time_slices)
-            # Construct metadata
-            data_time = self.element_groups_info[key]['metadata']['data_time']
-            delta = data_time[1] - data_time[0]
-            npts = len(data_time)
+        for index, station in stations.iterrows():
             network = station['network']
             station_name = station['name']
-            if channels is not None:
-                selected_detailed_channels = [element for element in self.element_groups_info[key]['metadata']['detailed_channels'] \
-                                            if any(element.startswith(prefix) for prefix in channels)]
-            else:
-                selected_detailed_channels = self.element_groups_info[key]['metadata']['detailed_channels']
-            for chn_index, chn in enumerate(selected_detailed_channels):
+            for chn_index, chn in enumerate(channels):
                 # form the traces at the channel level
-                trace = obspy.Trace(wave_data[0][chn_index])
+                trace = obspy.Trace(wave_data[index][chn_index])
                 trace.stats.delta = delta
                 trace.stats.ntps = npts
                 trace.stats.network = network
@@ -405,8 +397,8 @@ class ElementOutput(AxiSEM3DOutput):
 
         return stream
 
-    def stream(self, points: np.ndarray, coord_in_deg: bool = True,
-               channels: list = None,
+    def stream(self, points: np.ndarray, channels: list,
+               coord_in_deg: bool = True,
                time_limits: list = None) -> obspy.Stream:
         """
         Generate a stream with the wavefields computed at all stations given the location.
@@ -433,13 +425,12 @@ class ElementOutput(AxiSEM3DOutput):
         """
 
         # Get time slices from time limits. We assume that all points have the same time axis!!!!
-        first_key = next(iter(self.element_groups_info))
+        first_key = self.element_groups[0]
         data_time = self.element_groups_info[first_key]['metadata']['data_time']
         if time_limits is not None:
             time_slices = np.where((data_time >= time_limits[0]) & (data_time <= time_limits[1]))
         else:
             time_slices = None
-        group = next(iter(self.element_groups_info))
 
         points = np.array(points)
         if points.ndim == 1:
@@ -453,19 +444,14 @@ class ElementOutput(AxiSEM3DOutput):
                                     channels=channels,
                                     time_slices=time_slices,
                                     in_deg=coord_in_deg)
-        for point_index, point in enumerate(points):
+        for point_index in range(len(points)):
             # Construct metadata
             delta = data_time[1] - data_time[0]
             npts = len(data_time)
             network = str(np.random.randint(0, 100))
             station_name = str(np.random.randint(0, 100))
 
-            if channels is not None:
-                    selected_detailed_channels = [element for element in self.element_groups_info[group]['metadata']['detailed_channels'] \
-                                                if any(element.startswith(prefix) for prefix in channels)]
-            else:
-                selected_detailed_channels = self.element_groups_info[group]['metadata']['detailed_channels']
-            for chn_index, chn in enumerate(selected_detailed_channels):
+            for chn_index, chn in enumerate(channels):
                 # form the traces at the channel level
                 trace = obspy.Trace(wave_data[point_index][chn_index])
                 trace.stats.delta = delta
@@ -616,7 +602,8 @@ class ElementOutput(AxiSEM3DOutput):
             not_in_any_domain = True
             for domain_idx, domain in enumerate(domains):
                 r_min, r_max, theta_min, theta_max = domain
-                if (r_min <= radius <= r_max and
+                tolerance = 1e-6 # Tolerance for floating point comparison
+                if (r_min - tolerance <= radius <= r_max + tolerance and
                     theta_min <= theta <= theta_max and
                         not_in_any_domain):
                     # Assign domain index to the point
@@ -884,7 +871,6 @@ class ElementOutput(AxiSEM3DOutput):
                 pbar.update(len(name_list))
         return final_result
 
-
     def load_data_on_mesh(self, mesh:Mesh, channels: list, time_slices: list):
         """
         Load data on a mesh.
@@ -914,7 +900,6 @@ class ElementOutput(AxiSEM3DOutput):
             index += 1
 
         return inplane_field
-
 
     def animation(self, source_location: np.ndarray=None, station_location: np.ndarray=None, channels: list=['U'],
                           name: str='video', video_duration: int=20, frame_rate: int=10,
