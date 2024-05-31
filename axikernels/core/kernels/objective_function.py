@@ -6,16 +6,16 @@ from ...core.kernels.kernel import Kernel
 
 import matplotlib.pyplot as plt
 import shutil
-import os 
+import os
 import numpy as np
 import yaml
 from abc import ABC, abstractmethod
-from scipy import integrate 
+from scipy import integrate
 
 
 class ObjectiveFunction(ABC):
-    def __init__(self, forward_data:ElementOutput, 
-                 real_data:ObspyfiedOutput, 
+    def __init__(self, forward_data:ElementOutput,
+                 real_data:ObspyfiedOutput,
                  backward_data:ElementOutput=None):
         self.forward_data = forward_data
         self.real_data = real_data
@@ -26,13 +26,13 @@ class ObjectiveFunction(ABC):
 
 
     @abstractmethod
-    def compute_backward_field(self, station: str, network: str, 
+    def compute_backward_field(self, station: str, network: str,
                                location: str, real_channels: str,
                                window_left: float, window_right: float):
         pass
 
     @abstractmethod
-    def _compute_adjoint_STF(self, station: str, network: str, 
+    def _compute_adjoint_STF(self, station: str, network: str,
                                location: str, real_channels: str,
                                window_left: float, window_right: float):
         pass
@@ -61,18 +61,20 @@ class ObjectiveFunction(ABC):
 
     def _make_backward_directory(self):
         source_directory = self.forward_data.path_to_simulation
-        destination_directory = os.path.join(os.path.dirname(source_directory), 
+        destination_directory = os.path.join(os.path.dirname(source_directory),
                                            'backward_' + os.path.basename(source_directory))
         self._backward_directory = destination_directory
         try:
             # Create the destination directory if not exists
             if not os.path.exists(destination_directory):
                 os.makedirs(destination_directory)
-            else: 
+            else:
                 ans = input('Backward directory already exists. Overwrite it? (y/n): ')
                 if ans == 'y':
                     shutil.rmtree(destination_directory)
                     os.makedirs(destination_directory)
+                else:
+                    return
 
             # Copy "input" subdirectory
             input_directory = os.path.join(source_directory, "input")
@@ -92,16 +94,16 @@ class ObjectiveFunction(ABC):
 
 
 class XObjectiveFunction(ObjectiveFunction):
-    def __init__(self, forward_data:ElementOutput, 
-                 real_data:ObspyfiedOutput=None, 
+    def __init__(self, forward_data:ElementOutput,
+                 real_data:ObspyfiedOutput=None,
                  backward_data:ElementOutput=None):
             super().__init__(forward_data, real_data, backward_data)
 
 
-    def compute_backward_field(self, station: str, network: str, 
+    def compute_backward_field(self, station: str, network: str,
                                location: str, real_channels: str,
                                window_left: float, window_right: float):
-        
+
         # For the forward channels need to specify wether [UZ, UR, UT] or [UZ,
         # UE, UN], etc which AxiSEM3D type was used for outputting the
         # displacement. While for the real just put what is needed to select the
@@ -115,8 +117,8 @@ class XObjectiveFunction(ObjectiveFunction):
         # Compute and save adjoint source
         self._compute_adjoint_STF(station, network, location, real_channels,
                                   window_left, window_right)
-        
-        # Modify the inparam.source file 
+
+        # Modify the inparam.source file
         input('Modify the inparam.source file manually then press enter.')
 
         # Run the backward simulation
@@ -126,7 +128,7 @@ class XObjectiveFunction(ObjectiveFunction):
         self.backward_data = ElementOutput(os.path.join(self._backward_directory, 'output/elements'))
 
 
-    def _compute_adjoint_STF(self, station: str, network: str, 
+    def _compute_adjoint_STF(self, station: str, network: str,
                                location: str, real_channels: str,
                                window_left: float, window_right: float):
         # Compute cross-correlation (manual now)
@@ -136,30 +138,30 @@ class XObjectiveFunction(ObjectiveFunction):
         # put in station coords manually now
         station_depth = 0
         station_latitude = 0
-        station_longitude = 20
-        
+        station_longitude = 50
+
         # Put the station coords in geographic spherical [rad, lat, lon] in degrees
-        sta_rad = self.forward_data.Earth_Radius - station_depth
+        sta_rad = self.forward_data.Domain_Radius - station_depth
         point = np.array([sta_rad, station_latitude, station_longitude])
         # Get the forward data as a stream at that point
         forward_data = self.forward_data.load_data(point, channels=['UR','UT','UZ'], in_deg=True)
 
         # We again assume all elements have the same time axis
-        first_group = next(iter(self.forward_data.element_groups_info))
+        first_group = self.forward_data.element_groups[0]
         forward_time = self.forward_data.element_groups_info[first_group]['metadata']['data_time']
         dt_forward = forward_time[1] - forward_time[0]
         channel_type = self.forward_data.element_groups_info[first_group]['wavefields']['coordinate_frame']
-        
+
         dfwdt = {}
         fig, axs = plt.subplots(3, 1)
-        windowed_master_time, windowed_forward_data = window_data(forward_time, forward_data[0], 
+        windowed_master_time, windowed_forward_data = window_data(forward_time, forward_data[0],
                                                                     window_left, window_right)
         # Compute time derivative
         dfwdt = np.diff(windowed_forward_data, axis=1) / (dt_forward)
         differentiated_time_axis = windowed_master_time[0:-1] - dt_forward / 2
         # Apply the t -> T-t transformation to the residue and multiply with -1
         dfwdt = np.flip(np.array(dfwdt))
-        # Apply the t -> T-t transformation to the time 
+        # Apply the t -> T-t transformation to the time
         transformed_windowed_master_time = np.flip(np.max(forward_time) - differentiated_time_axis)
 
         # Compute denominator
@@ -168,12 +170,12 @@ class XObjectiveFunction(ObjectiveFunction):
         STF = {}
         for index, channel in enumerate(channel_type):
             # Scale velocity
-            new_time = np.linspace(min(transformed_windowed_master_time), 
-                                   max(transformed_windowed_master_time), 30)
+            new_time = np.linspace(min(transformed_windowed_master_time),
+                                   max(transformed_windowed_master_time), 500)
             STF[channel] = tau * np.interp(new_time, transformed_windowed_master_time, dfwdt[index]) / mag
             axs[index].plot(new_time, STF[channel])
             axs[index].text(1.05, 0.5, index, transform=axs[index].transAxes)
-         
+
         plt.show()
 
         ans = input('Save the STF? (y/n): ')
@@ -192,8 +194,8 @@ class XObjectiveFunction(ObjectiveFunction):
 
 
 class L2ObjectiveFunction(ObjectiveFunction):
-    def __init__(self, forward_data:ElementOutput, 
-                 real_data:ObspyfiedOutput=None, 
+    def __init__(self, forward_data:ElementOutput,
+                 real_data:ObspyfiedOutput=None,
                  backward_data:ElementOutput=None):
         super().__init__(forward_data, real_data, backward_data)
 
@@ -205,7 +207,7 @@ class L2ObjectiveFunction(ObjectiveFunction):
 
     def compute_backward_field(self, station: str, network: str, location: str, real_channels: str,
                                window_left: float, window_right: float):
-        
+
         # For the forward channels need to specify wether [UZ, UR, UT] or [UZ,
         # UE, UN], etc which AxiSEM3D type was used for outputting the
         # displacement. While for the real just put what is needed to select the
@@ -219,8 +221,8 @@ class L2ObjectiveFunction(ObjectiveFunction):
         # Compute and save adjoint source
         self._compute_adjoint_STF(station, network, location, real_channels,
                                   window_left, window_right)
-        
-        # Modify the inparam.source file 
+
+        # Modify the inparam.source file
         input('Modify the inparam.source file manually then press enter.')
 
         # Run the backward simulation
@@ -274,10 +276,10 @@ class L2ObjectiveFunction(ObjectiveFunction):
             yaml.dump(bw_source_data, file, default_flow_style=False)
 
 
-    def _compute_adjoint_STF(self, 
-                             station: str, network: str, location:str, 
+    def _compute_adjoint_STF(self,
+                             station: str, network: str, location:str,
                              real_channels: str,
-                             window_left: float=None, 
+                             window_left: float=None,
                              window_right: float=None):
 
         # get real data as stream
@@ -286,24 +288,24 @@ class L2ObjectiveFunction(ObjectiveFunction):
         real_data_time = stream_real_data[0].times('timestamp')
         dt_real_data = real_data_time[1] - real_data_time[0]
         # Select the specific station data
-        stream_real_data = stream_real_data.select(station=station, 
-                                                   network=network, 
-                                                   location=location, 
+        stream_real_data = stream_real_data.select(station=station,
+                                                   network=network,
+                                                   location=location,
                                                    channel=real_channels)
 
         # Extract the station coordinates from the inventory associated with the
         # real data
         inventory = self.real_data.inv
-        inventory = inventory.select(network=network, 
-                                    station=station, 
+        inventory = inventory.select(network=network,
+                                    station=station,
                                     location=location)
         station_depth = -inventory[0][0].elevation
         station_latitude = inventory[0][0].latitude
-        station_longitude = inventory[0][0].longitude  
+        station_longitude = inventory[0][0].longitude
 
         # In anticipation for the construction of the adjoint source file
         self._latitude_longitude = [station_latitude, station_longitude]
-        self._depth = station_depth  
+        self._depth = station_depth
 
         # Put the station coords in geographic spherical [rad, lat, lon] in degrees
         sta_rad = self.forward_data.Earth_Radius - station_depth
@@ -329,15 +331,15 @@ class L2ObjectiveFunction(ObjectiveFunction):
 
         fig, axs = plt.subplots(3, 1)
         for index, channel in enumerate(channel_type):
-            interpolated_real_data = np.interp(master_time, 
-                                            real_data_time, 
+            interpolated_real_data = np.interp(master_time,
+                                            real_data_time,
                                             stream_real_data.select(channel='U' + channel)[0].data)
-            interpolated_forward_data = np.interp(master_time, 
-                                                forward_time, 
+            interpolated_forward_data = np.interp(master_time,
+                                                forward_time,
                                                 stream_forward_data.select(channel='U' + channel)[0].data)
             if window_left is not None and window_right is not None:
                 _, windowed_real_data = window_data(master_time, interpolated_real_data, window_left, window_right)
-                windowed_master_time, windowed_forward_data = window_data(master_time, interpolated_forward_data, 
+                windowed_master_time, windowed_forward_data = window_data(master_time, interpolated_forward_data,
                                                                     window_left, window_right)
             else:
                 windowed_master_time = master_time
@@ -349,7 +351,7 @@ class L2ObjectiveFunction(ObjectiveFunction):
             axs[index].plot(windowed_master_time, windowed_forward_data, color='red')
             axs[index].plot(windowed_master_time, windowed_real_data, color='blue')
             axs[index].text(1.05, 0.5, index, transform=axs[index].transAxes)
-        # Apply the t -> T-t transformation to the time 
+        # Apply the t -> T-t transformation to the time
         transformed_windowed_master_time = np.flip(np.max(master_time) - windowed_master_time)
         STF = residue
 
