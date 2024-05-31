@@ -61,6 +61,8 @@ class AxiSEM3DOutput:
             # If there are multiple bm files, we take the first one
             if len(bm_files) > 1:
                 print('Multiple bm files were found, we take the first one.')
+            elif len(bm_files) == 0:
+                raise ValueError ('No bm files were found.')
             path_to_base_model = bm_files[0]
         # After finding the base model, we read and save its contents (they
         # must be easily accessible from this class for later)
