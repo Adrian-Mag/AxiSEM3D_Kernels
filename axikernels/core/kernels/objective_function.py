@@ -10,6 +10,9 @@ import numpy as np
 import yaml
 from abc import ABC, abstractmethod
 from scipy import integrate
+from ruamel.yaml import YAML
+import pkg_resources
+import subprocess
 
 
 class ObjectiveFunction(ABC):
@@ -107,7 +110,7 @@ class XObjectiveFunction(ObjectiveFunction):
         super().__init__(forward_data, real_data, backward_data)
 
     def compute_backward_field(self, tau: float, receiver_point: list,
-                               window: list):
+                               window: list, cores: int = None):
 
         # For the forward channels need to specify wether [UZ, UR, UT] or [UZ,
         # UE, UN], etc which AxiSEM3D type was used for outputting the
@@ -124,15 +127,49 @@ class XObjectiveFunction(ObjectiveFunction):
                                   window)
 
         # Modify the inparam.source file
-        input('Modify the inparam.source file manually then press enter.')
+        self._change_inparam_source(receiver_point)
 
         # Run the backward simulation
-        input('Run the backward simulation then press enter.')
+        self._run_backward_simulation(cores)
 
         # Save the backward data as property of the objective object
         self.backward_data = ElementOutput(
             os.path.join(self._backward_directory, 'output/elements')
             )
+
+    def _run_backward_simulation(self, cores):
+        if cores is None:
+            cores = os.cpu_count()
+        command = f"mpirun -np {cores} axisem3d"
+
+        process = subprocess.Popen(command, shell=True,
+                                   cwd=self._backward_directory)
+        output, error = process.communicate()
+
+    def _change_inparam_source(self, reciever_point: list):
+        yaml = YAML()
+        yaml.anchor_generator = lambda *args: None
+        file_path = pkg_resources.resource_filename(
+            __name__, 'adjoint_source_model.yaml'
+            )
+        # Open the adjoint source model file
+        with open(file_path, 'r') as file:
+            adjoint_source = yaml.load(file)
+        # Open the forward source
+        with open(self.forward_data.inparam_source, 'r') as file:
+            forward_source = yaml.load(file)
+        adjoint_source['time_axis']['record_length'] = forward_source['time_axis']['record_length'] # noqa
+        adjoint_source['time_axis']['enforced_dt'] = forward_source['time_axis']['enforced_dt'] # noqa
+        adjoint_source['time_axis']['Courant_number'] = forward_source['time_axis']['Courant_number'] # noqa
+        adjoint_source['time_axis']['integrator'] = forward_source['time_axis']['integrator'] # noqa
+
+        for point in adjoint_source['list_of_sources']:
+            key = list(point.keys())[0]
+            point[key]['location']['latitude_longitude'][0] = reciever_point[1]
+            point[key]['location']['latitude_longitude'][1] = reciever_point[2]
+        with open(os.path.join(self._backward_directory,
+                               'input/inparam.source.yaml'), 'w') as file:
+            yaml.dump(adjoint_source, file)
 
     def _compute_adjoint_STF(self, tau: float,
                              receiver_point: list,
