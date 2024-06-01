@@ -51,14 +51,14 @@ time_axis:
 list_of_sources:
     - ohotsk:
         location:
-            latitude_longitude: [54.61, 153.77]
-            depth: 611000
+            latitude_longitude: [-6.533, 129.825]
+            depth: 155000
             ellipticity: true
             depth_below_solid_surface: true
             undulated_geometry: true
         mechanism:
             type: MOMENT_TENSOR
-            data: [-1.67e28, 0.382e28, 1.28e28, -0.784e28, -3.57e28, 0.155e28]
+            data: [1.03e26, -4.45e26, 3.42e26, 1.81e26, 3.51e26, 0.131e26]
             unit: 1e-7
         source_time_function:
             class_name: GaussianSTF
