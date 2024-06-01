@@ -1,82 +1,29 @@
 list_of_sources:
-- pointZ:
+- THE_ONLY_SOURCE:
     location:
-      depth: 0
+      depth: 20e3
       depth_below_solid_surface: true
       ellipticity: true
       latitude_longitude:
       - 0
-      - 40
+      - 0
       undulated_geometry: true
     mechanism:
       data:
-      - 1
+      - 1e21
+      - 1e21
+      - 1e21
       - 0
       - 0
-      type: FORCE_VECTOR
+      - 0
+      type: MOMENT_TENSOR
       unit: 1
     source_time_function:
-      ascii_data_file: STF/Z.txt
+      ascii_data_file: stf.txt
       chunk_size: NONE
-      class_name: StreamSTF
+      class_name: GaussianSTF
       decay_factor: 1.628
-      half_duration: 10.0
-      nc_data_file: stf_file.nc
-      nc_var_data: stf_data
-      nc_var_times: stf_times
-      padding: FIRST_LAST
-      time_shift: 0.0
-      use_derivative_integral: ERF
-- pointR:
-    location:
-      depth: 0
-      depth_below_solid_surface: true
-      ellipticity: true
-      latitude_longitude:
-      - 0
-      - 40
-      undulated_geometry: true
-    mechanism:
-      data:
-      - 0
-      - 1
-      - 0
-      type: FORCE_VECTOR
-      unit: 1
-    source_time_function:
-      ascii_data_file: STF/R.txt
-      chunk_size: NONE
-      class_name: StreamSTF
-      decay_factor: 1.628
-      half_duration: 10.0
-      nc_data_file: stf_file.nc
-      nc_var_data: stf_data
-      nc_var_times: stf_times
-      padding: FIRST_LAST
-      time_shift: 0.0
-      use_derivative_integral: ERF
-- pointT:
-    location:
-      depth: 0
-      depth_below_solid_surface: true
-      ellipticity: true
-      latitude_longitude:
-      - 0
-      - 40
-      undulated_geometry: true
-    mechanism:
-      data:
-      - 0
-      - 0
-      - 1
-      type: FORCE_VECTOR
-      unit: 1
-    source_time_function:
-      ascii_data_file: STF/T.txt
-      chunk_size: NONE
-      class_name: StreamSTF
-      decay_factor: 1.628
-      half_duration: 10.0
+      half_duration: 25.0
       nc_data_file: stf_file.nc
       nc_var_data: stf_data
       nc_var_times: stf_times
