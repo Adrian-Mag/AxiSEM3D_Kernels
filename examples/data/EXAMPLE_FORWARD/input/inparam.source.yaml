@@ -179,7 +179,6 @@ list_of_sources:
             # note: 1) NONE: throw an error when time is out of range
             #       2) FIRST_LAST: use the first and the last values in file
             #       3) [left, right]: specified padding values
-
             # what: chunk size (how many time steps per chunk)
             # type: NONE / int
             # note: 1) NetCDF_STF loads data by chunks during the time loop;
