@@ -16,7 +16,7 @@ time_axis:
     # what: record length (the end time in seismograms)
     # type: double
     # note: the start time depends on the source-time functions
-    record_length: 3600.
+    record_length: 100.
 
     # what: user-specified Δt
     # type: string / double
@@ -179,7 +179,7 @@ list_of_sources:
             # note: 1) NONE: throw an error when time is out of range
             #       2) FIRST_LAST: use the first and the last values in file
             #       3) [left, right]: specified padding values
-            padding: FIRST_LAST
+
             # what: chunk size (how many time steps per chunk)
             # type: NONE / int
             # note: 1) NetCDF_STF loads data by chunks during the time loop;
