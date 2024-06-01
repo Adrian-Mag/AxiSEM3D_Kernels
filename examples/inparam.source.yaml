@@ -16,7 +16,7 @@ time_axis:
     # what: record length (the end time in seismograms)
     # type: double
     # note: the start time depends on the source-time functions
-  record_length: 3600.
+  record_length: 100.0
 
     # what: user-specified Δt
     # type: string / double
@@ -54,7 +54,7 @@ list_of_sources:
 - pointZ:
         # source location
     location:
-      latitude_longitude: [0, 50]
+      latitude_longitude: [0, 40]
       depth: 0
       ellipticity: true
       depth_below_solid_surface: true
@@ -89,7 +89,7 @@ list_of_sources:
 - pointR:
         # source location
     location:
-      latitude_longitude: [0, 50]
+      latitude_longitude: [0, 40]
       depth: 0
       ellipticity: true
       depth_below_solid_surface: true
@@ -124,7 +124,7 @@ list_of_sources:
 - pointT:
         # source location
     location:
-      latitude_longitude: [0, 50]
+      latitude_longitude: [0, 40]
       depth: 0
       ellipticity: true
       depth_below_solid_surface: true
