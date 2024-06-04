@@ -40,8 +40,8 @@ class ObjectiveFunction(ABC):
                              window_left: float, window_right: float):
         pass
 
-    def _save_STF(self, directory, master_time, STF, channel_type):
-        for channel in channel_type:
+    def _save_STF(self, directory, master_time, STF, channels):
+        for channel in channels:
             # Save results to a text file
             filename = os.path.join(directory, channel + '.txt')
             # Combine time and data arrays column-wise
@@ -118,7 +118,7 @@ class XObjectiveFunction(ObjectiveFunction):
         super().__init__(forward_data, real_data, backward_simulation)
 
     def compute_backward_field(self, tau: float, receiver_point: list,
-                               window: list, cores: int = None):
+                               window: list, channel: str, cores: int = None):
 
         # For the forward channels need to specify wether [UZ, UR, UT] or [UZ,
         # UE, UN], etc which AxiSEM3D type was used for outputting the
@@ -134,7 +134,7 @@ class XObjectiveFunction(ObjectiveFunction):
 
             # Compute and save adjoint source
             self._compute_adjoint_STF(tau, receiver_point,
-                                    window)
+                                    window, channel)
 
             # Modify the inparam.source file
             self._change_inparam_source(receiver_point)
@@ -218,19 +218,24 @@ class XObjectiveFunction(ObjectiveFunction):
 
     def _compute_adjoint_STF(self, tau: float,
                              receiver_point: list,
-                             window):
+                             window, channel: str):
 
         # Load data
 
         # Get the forward wavefield displacement data as a numpy array at the
         # receiver
+        channels = ['UR', 'UT', 'UZ']
+        mask = [ch != channel for ch in channels]
         forward_displacement = self.forward_data.load_data(np.array(receiver_point), # noqa
-                                                           channels=['UR', 'UT', 'UZ'], # noqa
+                                                           channels=channels, # noqa
                                                            in_deg=True)[0]
+        forward_displacement[mask] = 0 * forward_displacement[mask] # noqa
         # Get the time axis at the receiver. We again assume all elements have
         # the same time axis
         first_group = self.forward_data.element_groups[0]
         forward_time = self.forward_data.element_groups_info[first_group]['metadata']['data_time'] # noqa
+        # Kill the unwanted channels
+
         dt_forward = forward_time[1] - forward_time[0]
         # Window the data
         windowed_master_time, windowed_forward_data = window_data(
@@ -240,24 +245,24 @@ class XObjectiveFunction(ObjectiveFunction):
         dfwdt = np.diff(windowed_forward_data, axis=1) / (dt_forward)
         differentiated_time_axis = windowed_master_time[0:-1] - dt_forward / 2
         # Apply the t -> T-t transformation to the residue
-        dfwdt = np.flip(np.array(dfwdt))
+        dfwdt = np.flip(np.array(dfwdt), axis=1)
         # Apply the t -> T-t transformation to the time
         transformed_windowed_master_time = np.flip(np.max(forward_time) -
                                                    differentiated_time_axis)
-        # Compute normalization factor
-        mag = np.sqrt(integrate.simpson(np.sum(dfwdt * dfwdt, axis=0),
-                                        dx=dt_forward))
 
         # Right now the velocity is in the ZRT coordinate system of the
         # receiver, but we want it in the ZRT coordinate determined by the
         # north pole, so we must rotate the RT coordinates
         dfwdt[0:2] = np.dot(self._compute_RT_totation_matrix(receiver_point), dfwdt[0:2])
+        # Now pick the observation channel
+        # Compute normalization factor
+        mag = np.sqrt(integrate.simpson(np.sum(dfwdt * dfwdt, axis=0),
+                                        dx=dt_forward))
         # Build the STF
         STF = {}
         # Get the coordinate system
-        channel_type = self.forward_data.element_groups_info[first_group]['wavefields']['coordinate_frame'] # noqa
         _, axs = plt.subplots(3, 1)
-        for index, channel in enumerate(channel_type):
+        for index, channel in enumerate(channels):
             # Scale velocity
             new_time = np.linspace(min(transformed_windowed_master_time),
                                    max(transformed_windowed_master_time), 100)
@@ -266,6 +271,9 @@ class XObjectiveFunction(ObjectiveFunction):
                 ) / mag
             axs[index].plot(new_time, STF[channel])
             axs[index].text(1.05, 0.5, index, transform=axs[index].transAxes)
+            axs[index].set_xlabel('Time')
+            axs[index].set_ylabel('Amplitude')
+            axs[index].set_title(channel)
         plt.show()
 
         # See if you want to save the STF or not
@@ -276,12 +284,12 @@ class XObjectiveFunction(ObjectiveFunction):
             if not os.path.exists(directory):
                 os.makedirs(directory)
                 print("Directory created:", directory)
-                self._save_STF(directory, new_time, STF, channel_type)
+                self._save_STF(directory, new_time, STF, channels)
             else:
                 print("Directory already exists:", directory)
                 ans = input('Overwrite the existing data [y/n]: ')
                 if ans == 'y':
-                    self._save_STF(directory, new_time, STF, channel_type)
+                    self._save_STF(directory, new_time, STF, channels)
 
 
 class L2ObjectiveFunction(ObjectiveFunction):

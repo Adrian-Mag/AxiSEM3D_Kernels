@@ -77,7 +77,7 @@ list_of_sources:
             # ------------------------ #
             # parameters for StreamSTF #
             # ------------------------ #
-            ascii_data_file: STF/Z.txt
+            ascii_data_file: STF/UZ.txt
             padding: FIRST_LAST
             # ------------------------- #
             # parameters for NetCDF_STF #
@@ -112,7 +112,7 @@ list_of_sources:
             # ------------------------ #
             # parameters for StreamSTF #
             # ------------------------ #
-            ascii_data_file: STF/R.txt
+            ascii_data_file: STF/UR.txt
             padding: FIRST_LAST
             # ------------------------- #
             # parameters for NetCDF_STF #
@@ -147,7 +147,7 @@ list_of_sources:
             # ------------------------ #
             # parameters for StreamSTF #
             # ------------------------ #
-            ascii_data_file: STF/T.txt
+            ascii_data_file: STF/UT.txt
             padding: FIRST_LAST
             # ------------------------- #
             # parameters for NetCDF_STF #

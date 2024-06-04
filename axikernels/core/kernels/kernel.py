@@ -134,6 +134,95 @@ class Kernel():
                                     dx=dt) # noqa
             sensitivity[material_mapping==0] = solid_sensitivities
 
+        if len(liquid_points) > 0:
+        # Compute liquid sensitivities
+            forward_P = np.nan_to_num(
+                self.forward_data.load_data(liquid_points,
+                                            channels=['P'],
+                                            in_deg=False))[:,0,:]
+            backward_P = np.nan_to_num(
+                self.backward_data.load_data(liquid_points,
+                                            channels=['P'],
+                                            in_deg=False))[:,0,:]
+            # flip adjpoint in time
+            backward_P = np.flip(backward_P, axis=1)
+
+            interp_forward_P = np.empty(forward_P.shape[:-1] +
+                                        (len(self.master_time),))
+            interp_backward_P = np.empty(backward_P.shape[:-1] +
+                                        (len(self.master_time),))
+
+            for i in range(len(liquid_points)):
+                interp_forward_P[i] = np.interp(self.master_time,
+                                                self.fw_time,
+                                                forward_P[i])
+                interp_backward_P[i] = np.interp(self.master_time,
+                                                self.bw_time,
+                                                backward_P[i])
+            # Get material properties
+            rho = self._find_material_property(liquid_points, 'rho')
+            vp = self._find_material_property(liquid_points, 'vp')
+
+            factor = 1 / ((rho**2) * vp**4)
+            liquid_sensitivities = integrate.simpson(interp_forward_P * interp_backward_P * factor[:, np.newaxis],
+                                                    dx=dt)
+            sensitivity[material_mapping==1] = liquid_sensitivities
+
+        return sensitivity
+
+    def evaluate_mu(self, points: np.ndarray) -> np.ndarray:
+        # K_mu_0 = int_T (grad u^t):(grad u) + (grad u^t):(grad u)^T
+        # = int_T 2E^t:E
+
+        # We first try to compute the sensitivity using the strain tensor, but
+        # if it is not available, then we will use the gradient of displacement
+        material_mapping = self.forward_data._group_by_material(points)
+        solid_points = points[material_mapping==0]
+        liquid_points = points[material_mapping==1]
+        sensitivity = np.zeros(len(points))
+        if len(solid_points) > 0:
+        # get forwards and backward waveforms at this point
+            G_forward = np.nan_to_num(
+                self.forward_data.load_data(
+                    solid_points, channels=['GRR', 'GRT', 'GRZ',
+                                    'GTR', 'GTT', 'GTZ',
+                                    'GZR', 'GZT', 'GZZ'], in_deg=False))
+            G_adjoint = np.nan_to_num(
+                self.backward_data.load_data(
+                    solid_points, channels=['GRR', 'GRT', 'GRZ',
+                                    'GTR', 'GTT', 'GTZ',
+                                    'GZR', 'GZT', 'GZZ'], in_deg=False))
+
+            # flip adjoint in time
+            G_adjoint = np.flip(G_adjoint, axis=2)
+
+            # Project both arrays on the master time
+            interp_G_forward = np.empty(G_forward.shape[:-1] +
+                                        (len(self.master_time),))
+            interp_G_adjoint = np.empty(G_adjoint.shape[:-1] +
+                                        (len(self.master_time),))
+            for i in range(len(solid_points)):
+                for j in range(9):
+                    interp_G_forward[i, j, :] = np.interp(self.master_time,
+                                                        self.fw_time,
+                                                        G_forward[i, j, :])
+                    interp_G_adjoint[i, j, :] = np.interp(self.master_time,
+                                                        self.bw_time,
+                                                        G_adjoint[i, j, :])
+
+            interp_G_forward = interp_G_forward.reshape(len(solid_points), 3, 3,
+                                                        len(self.master_time))
+            interp_G_adjoint = interp_G_adjoint.reshape(len(solid_points), 3, 3,
+                                                        len(self.master_time))
+
+            # Multiply
+            integrand = np.sum(interp_G_adjoint *
+                            (interp_G_forward +
+                                interp_G_forward.transpose(0, 2, 1, 3)),
+                            axis=(1, 2))
+            dt = self.master_time[1] - self.master_time[0]
+            solid_sensitivities = integrate.simpson(integrand, dx=dt)
+            sensitivity[material_mapping==0] = solid_sensitivities
 
         if len(liquid_points) > 0:
         # Compute liquid sensitivities
@@ -164,62 +253,12 @@ class Kernel():
             rho = self._find_material_property(liquid_points, 'rho')
             vp = self._find_material_property(liquid_points, 'vp')
 
-            factor = 1 / (rho * vp**2)
+            factor = 2 / (3 * (rho**2) * vp**4)
             liquid_sensitivities = integrate.simpson(interp_forward_P * interp_backward_P * factor[:, np.newaxis],
                                                     dx=dt)
             sensitivity[material_mapping==1] = liquid_sensitivities
 
         return sensitivity
-
-    def evaluate_mu(self, points: np.ndarray) -> np.ndarray:
-        # K_mu_0 = int_T (grad u^t):(grad u) + (grad u^t):(grad u)^T
-        # = int_T 2E^t:E
-
-        # We first try to compute the sensitivity using the strain tensor, but
-        # if it is not available, then we will use the gradient of displacement
-
-        # get forwards and backward waveforms at this point
-        G_forward = np.nan_to_num(
-            self.forward_data.load_data(
-                points, channels=['GRR', 'GRT', 'GRZ',
-                                  'GTR', 'GTT', 'GTZ',
-                                  'GZR', 'GZT', 'GZZ'], in_deg=False))
-        G_adjoint = np.nan_to_num(
-            self.backward_data.load_data(
-                points, channels=['GRR', 'GRT', 'GRZ',
-                                  'GTR', 'GTT', 'GTZ',
-                                  'GZR', 'GZT', 'GZZ'], in_deg=False))
-
-        # flip adjoint in time
-        G_adjoint = np.flip(G_adjoint, axis=2)
-
-        # Project both arrays on the master time
-        interp_G_forward = np.empty(G_forward.shape[:-1] +
-                                    (len(self.master_time),))
-        interp_G_adjoint = np.empty(G_adjoint.shape[:-1] +
-                                    (len(self.master_time),))
-        for i in range(len(points)):
-            for j in range(9):
-                interp_G_forward[i, j, :] = np.interp(self.master_time,
-                                                      self.fw_time,
-                                                      G_forward[i, j, :])
-                interp_G_adjoint[i, j, :] = np.interp(self.master_time,
-                                                      self.bw_time,
-                                                      G_adjoint[i, j, :])
-
-        interp_G_forward = interp_G_forward.reshape(len(points), 3, 3,
-                                                    len(self.master_time))
-        interp_G_adjoint = interp_G_adjoint.reshape(len(points), 3, 3,
-                                                    len(self.master_time))
-
-        # Multiply
-        integrand = np.sum(interp_G_adjoint *
-                           (interp_G_forward +
-                            interp_G_forward.transpose(0, 2, 1, 3)),
-                           axis=(1, 2))
-
-        return integrate.simpson(integrand, dx=(self.master_time[1] -
-                                                self.master_time[0]))
 
     def evaluate_rho(self, points: np.ndarray) -> np.ndarray:
         # K_rho = K_rho_0 + (vp^2-2vs^2)K_lambda_0 + vs^2 K_mu_0

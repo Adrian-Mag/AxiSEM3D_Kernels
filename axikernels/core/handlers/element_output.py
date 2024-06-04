@@ -475,6 +475,7 @@ class ElementOutput(AxiSEM3DOutput):
 
         # If we receive only one point as ndarray([a,b,c]) we turn it into
         # ndarray([[a,b,c]])
+        points = np.array(points)
         if points.ndim == 1:
             points = points.reshape((1, 3))
 
