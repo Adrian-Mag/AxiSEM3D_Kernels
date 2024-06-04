@@ -18,12 +18,12 @@ import subprocess
 class ObjectiveFunction(ABC):
     def __init__(self, forward_data: ElementOutput,
                  real_data: ObspyfiedOutput = None,
-                 backward_data: ElementOutput = None):
+                 backward_simulation: ElementOutput = None):
 
         # The objective function can be initialized with only the forward data
         # and use its methods to compute the backward wavefield
         self.forward_data = forward_data
-        self.backward_data = backward_data
+        self.backward_simulation = backward_simulation
 
         # Kernel
         self.kernel = None
@@ -49,16 +49,16 @@ class ObjectiveFunction(ABC):
             # Save the combined data to a text file
             np.savetxt(filename, combined_data, fmt='%.16f', delimiter='\t')
 
-    def initialize_kernels(self, backward_data: ElementOutput = None):
-        # Check if the backward_data is known
-        if self.backward_data is None and backward_data is None:
+    def initialize_kernels(self, backward_simulation: ElementOutput = None):
+        # Check if the backward_simulation is known
+        if self.backward_simulation is None and backward_simulation is None:
             print('No backward data was provided.'
                   ' Use "compute_backward_field" to compute it.')
-        elif self.backward_data is not None:
-            self.kernel = Kernel(self.forward_data, self.backward_data)
-        elif backward_data is not None:
-            self.backward_data = backward_data
-            self.kernel = Kernel(self.forward_data, self.backward_data)
+        elif self.backward_simulation is not None:
+            self.kernel = Kernel(self.forward_data, self.backward_simulation)
+        elif backward_simulation is not None:
+            self.backward_simulation = backward_simulation
+            self.kernel = Kernel(self.forward_data, self.backward_simulation)
 
     def _make_backward_directory(self):
         source_directory = self.forward_data.path_to_simulation
@@ -80,7 +80,15 @@ class ObjectiveFunction(ABC):
                     shutil.rmtree(destination_directory)
                     os.makedirs(destination_directory)
                 else:
-                    return
+                    ans = input('Create a new backard directory? (y/n): ')
+                    if ans == 'y':
+                        dir_name = input('Enter the new directory name: ')
+                        destination_directory = os.path.join(
+                            os.path.dirname(source_directory),
+                            'backward_' + dir_name
+                            )
+                        self._backward_directory = destination_directory
+                        os.makedirs(destination_directory)
 
             # Copy "input" subdirectory
             input_directory = os.path.join(source_directory, "input")
@@ -106,8 +114,8 @@ class ObjectiveFunction(ABC):
 class XObjectiveFunction(ObjectiveFunction):
     def __init__(self, forward_data: ElementOutput,
                  real_data: ObspyfiedOutput = None,
-                 backward_data: ElementOutput = None):
-        super().__init__(forward_data, real_data, backward_data)
+                 backward_simulation: ElementOutput = None):
+        super().__init__(forward_data, real_data, backward_simulation)
 
     def compute_backward_field(self, tau: float, receiver_point: list,
                                window: list, cores: int = None):
@@ -120,34 +128,43 @@ class XObjectiveFunction(ObjectiveFunction):
 
         #  Create the necessary directory structure and
         # files
-        self._make_backward_directory()
+        ans = input('Construct backward simulation? (y/n): ')
+        if ans == 'y':
+            self._make_backward_directory()
 
-        # Compute and save adjoint source
-        self._compute_adjoint_STF(tau, receiver_point,
-                                  window)
+            # Compute and save adjoint source
+            self._compute_adjoint_STF(tau, receiver_point,
+                                    window)
 
-        # Modify the inparam.source file
-        self._change_inparam_source(receiver_point)
+            # Modify the inparam.source file
+            self._change_inparam_source(receiver_point)
 
-        # Run the backward simulation
-        self._run_backward_simulation(cores)
+            # Run the backward simulation
+            self._run_backward_simulation(cores)
 
-        # Save the backward data as property of the objective object
-        self.backward_data = ElementOutput(
-            os.path.join(self._backward_directory, 'output/elements')
-            )
+            # Save the backward data as property of the objective object
+            self.backward_simulation = ElementOutput(
+                os.path.join(self._backward_directory, 'output/elements')
+                )
+        else:
+            return
 
     def _run_backward_simulation(self, cores):
-        if cores is None:
-            cores = os.cpu_count()
-        command = f"mpirun -np {cores} axisem3d"
+        ans = input('Run the backward simulation? (y/n): ')
+        if ans == 'y':
+            if cores is None:
+                cores = os.cpu_count()
+            command = f"mpirun -np {cores} axisem3d"
 
-        process = subprocess.Popen(command, shell=True,
-                                   cwd=self._backward_directory)
-        output, error = process.communicate()
+            process = subprocess.Popen(command, shell=True,
+                                    cwd=self._backward_directory)
+            output, error = process.communicate()
+        else:
+            return
 
     def _change_inparam_source(self, reciever_point: list):
         yaml = YAML()
+        yaml.indent(mapping=2, sequence=4, offset=2)
         yaml.anchor_generator = lambda *args: None
         file_path = pkg_resources.resource_filename(
             __name__, 'adjoint_source_model.yaml'
@@ -170,6 +187,34 @@ class XObjectiveFunction(ObjectiveFunction):
         with open(os.path.join(self._backward_directory,
                                'input/inparam.source.yaml'), 'w') as file:
             yaml.dump(adjoint_source, file)
+
+    def _compute_RT_totation_matrix(self, receiver_point):
+        receiver_lat = np.deg2rad(receiver_point[1])
+        receciver_lon = np.deg2rad(receiver_point[2])
+        event_lat = np.deg2rad(self.forward_data.source_lat)
+        event_lon = np.deg2rad(self.forward_data.source_lon)
+
+        e = [np.cos(event_lat)*np.cos(event_lon),
+             np.cos(event_lat)*np.sin(event_lon),
+             np.sin(event_lat)]
+        s = [np.cos(receiver_lat)*np.cos(receciver_lon),
+             np.cos(receiver_lat)*np.sin(receciver_lon),
+             np.sin(receiver_lat)]
+
+        t = np.array([-np.cos(receiver_lat)*np.sin(receciver_lon),
+                      np.cos(receiver_lat)*np.cos(receciver_lon),
+                      0])/np.cos(receiver_lat)
+
+        t_s = np.cross(e, s)
+        t_s = t_s/np.linalg.norm(t_s)
+
+        cos_alpha = np.dot(t, t_s)
+        alpha = np.arccos(cos_alpha)
+        if np.dot(np.cross(t, t_s), s) < 0:
+            alpha = -alpha
+        sin_alpha = np.sin(alpha)
+        return np.array([[cos_alpha, sin_alpha],
+                         [-sin_alpha, cos_alpha]])
 
     def _compute_adjoint_STF(self, tau: float,
                              receiver_point: list,
@@ -203,6 +248,10 @@ class XObjectiveFunction(ObjectiveFunction):
         mag = np.sqrt(integrate.simpson(np.sum(dfwdt * dfwdt, axis=0),
                                         dx=dt_forward))
 
+        # Right now the velocity is in the ZRT coordinate system of the
+        # receiver, but we want it in the ZRT coordinate determined by the
+        # north pole, so we must rotate the RT coordinates
+        dfwdt[0:2] = np.dot(self._compute_RT_totation_matrix(receiver_point), dfwdt[0:2])
         # Build the STF
         STF = {}
         # Get the coordinate system
@@ -238,8 +287,8 @@ class XObjectiveFunction(ObjectiveFunction):
 class L2ObjectiveFunction(ObjectiveFunction):
     def __init__(self, forward_data: ElementOutput,
                  real_data: ObspyfiedOutput = None,
-                 backward_data: ElementOutput = None):
-        super().__init__(forward_data, real_data, backward_data)
+                 backward_simulation: ElementOutput = None):
+        super().__init__(forward_data, real_data, backward_simulation)
 
         # Source data
         self.source_depth = forward_data.source_depth
@@ -271,7 +320,7 @@ class L2ObjectiveFunction(ObjectiveFunction):
         input('Run the backward simulation then press enter.')
 
         # Save the backward data as property of the objective object
-        self.backward_data = ElementOutput(
+        self.backward_simulation = ElementOutput(
             os.path.join(self._backward_directory, 'output/elements')
             )
 

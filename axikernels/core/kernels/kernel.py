@@ -25,53 +25,33 @@ class Kernel():
         self.forward_data = forward_obj
         self.backward_data = backward_obj
 
+        self._compute_times()
+
+        # Dictionary for kernel types:
+        self.kernel_types = {'rho_0': self.evaluate_rho_0,
+                             'lambda': self.evaluate_lambda,
+                             'mu': self.evaluate_mu,
+                             'rho': self.evaluate_rho,
+                             'vp': self.evaluate_vp,
+                             'vs': self.evaluate_vs,
+                             }
+
+    def _compute_times(self):
         # get the forward and backward time (assuming that all element groups
         # have the same time axis!!)
         first_group = self.forward_data.element_groups[0]
-        fw_time = self.forward_data.element_groups_info[first_group]['metadata']['data_time'] # noqa
-        self.fw_dt = fw_time[1] - fw_time[0]
+        self.fw_time = self.forward_data.element_groups_info[first_group]['metadata']['data_time'] # noqa
+        self.fw_dt = self.fw_time[1] - self.fw_time[0]
         bw_time = self.backward_data.element_groups_info[first_group]['metadata']['data_time'] # noqa
         # Apply again t -> T-t transform on the adjoint time
-        bw_time = np.flip(np.max(bw_time) - bw_time)
-        self.bw_dt = bw_time[1] - bw_time[0]
+        self.bw_time = np.flip(np.max(bw_time) - bw_time)
+        self.bw_dt = self.bw_time[1] - self.bw_time[0]
 
-        # Check if the times
         # Find the master time (minmax/maxmin)
-        t_max = min(fw_time[-1], bw_time[-1])
-        t_min = max(fw_time[0], bw_time[0])
+        t_max = min(self.fw_time[-1], self.bw_time[-1])
+        t_min = max(self.fw_time[0], self.bw_time[0])
         dt = max(self.fw_dt, self.bw_dt)
         self.master_time = np.arange(t_min, t_max + dt, dt)
-
-        self.fw_time = fw_time
-        self.bw_time = bw_time
-
-    def evaluate_on_mesh(self, path_to_inversion_mesh, sensitivity_out_path):
-        # Earth's radius in m
-        R = 6371000
-
-        # import inversion mesh
-        points = pd.read_csv(path_to_inversion_mesh, sep=" ")
-
-        # initialize sensitivity
-        sensitivity = {'radius': [], 'latitude': [],
-                       'longitude': [], 'sensitivity': []}
-
-        for _, row in points.iterrows():
-            latitude = row['latitude']
-            longitude = row['longitude']
-            radius = R - row['depth']
-
-            # integrate over time the dot product
-            sensitivity['radius'].append(radius)
-            sensitivity['latitude'].append(latitude)
-            sensitivity['longitude'].append(longitude)
-            sensitivity['sensitivity'].append(self.evaluate(radius,
-                                                            latitude,
-                                                            longitude))
-
-        sensitivity_df = pd.DataFrame(sensitivity)
-        sensitivity_df.to_csv(sensitivity_out_path + '/' +
-                              'sensitivity_rho.txt', sep=' ', index=False)
 
     def evaluate_rho_0(self, points: np.ndarray) -> np.ndarray:
         # get forwards and backward displacements at these points
@@ -90,7 +70,7 @@ class Kernel():
         # Compute time at the derivative points
         fw_time = self.fw_time[0:-1] + self.fw_dt / 2
         bw_time = self.bw_time[0:-1] + self.bw_dt / 2
-        # Compute time derivatives wrt to time
+        # Compute derivatives wrt to time
         dfwdt = np.diff(forward_waveform, axis=2) / self.fw_dt
         dbwdt = np.diff(backward_waveform, axis=2) / self.bw_dt
 
@@ -114,41 +94,82 @@ class Kernel():
 
     def evaluate_lambda(self, points: np.ndarray) -> np.ndarray:
         # K_lambda^zero = int_T (div u)(div u^t) = int_T (tr E)(tr E^t) =
-        # int_T (EZZ+ERR+ETT)(EZZ^t+ERR^t+ETT^t)
+        # int_T (GZZ+GRR+GTT)(GZZ^t+GRR^t+GTT^t)
+        material_mapping = self.forward_data._group_by_material(points)
+        solid_points = points[material_mapping==0]
+        liquid_points = points[material_mapping==1]
+        sensitivity = np.zeros(len(points))
 
-        # We first try to compute the sensitivity using the strain tensor, but
-        # if it is not available, then we will use the gradient of displacement
+        if len(solid_points) > 0:
+            # Compute solid sensitivities
+            # get forwards and backward waveforms at this point
+            forward_diagG = np.nan_to_num(
+                self.forward_data.load_data(solid_points,
+                                            channels=['GZZ', 'GRR', 'GTT'],
+                                            in_deg=False))
+            backward_diagG = np.nan_to_num(
+                self.backward_data.load_data(solid_points,
+                                            channels=['GZZ', 'GRR', 'GTT'],
+                                            in_deg=False))
 
-        # get forwards and backward waveforms at this point
-        forward_waveform = np.nan_to_num(
-            self.forward_data.load_data(points,
-                                        channels=['GZZ', 'GRR', 'GTT'],
-                                        in_deg=False))
-        backward_waveform = np.nan_to_num(
-            self.backward_data.load_data(points,
-                                         channels=['GZZ', 'GRR', 'GTT'],
-                                         in_deg=False))
+            # compute trace of each wavefield and flip adjoint in time
+            trace_G = forward_diagG.sum(axis=1)
+            trace_G_adjoint = np.flip(backward_diagG.sum(axis=1), axis=1)
 
-        # compute trace of each wavefield and flip adjoint in time
-        trace_G = forward_waveform.sum(axis=1)
-        trace_G_adjoint = np.flip(backward_waveform.sum(axis=1), axis=1)
+            # Project both on master time
+            interp_trace_G = np.empty(trace_G.shape[:-1] +
+                                    (len(self.master_time),))
+            interp_trace_G_adjoint = np.empty(trace_G.shape[:-1] +
+                                            (len(self.master_time),))
 
-        # Project both on master time
-        interp_trace_G = np.empty(trace_G.shape[:-1] +
-                                  (len(self.master_time),))
-        interp_trace_G_adjoint = np.empty(trace_G.shape[:-1] +
-                                          (len(self.master_time),))
+            for i in range(len(solid_points)):
+                interp_trace_G[i] = np.interp(self.master_time,
+                                            self.fw_time,
+                                            trace_G[i])
+                interp_trace_G_adjoint[i] = np.interp(self.master_time,
+                                                    self.bw_time,
+                                                    trace_G_adjoint[i])
+            dt = self.master_time[1] - self.master_time[0]
+            solid_sensitivities = integrate.simpson(interp_trace_G * interp_trace_G_adjoint,
+                                    dx=dt) # noqa
+            sensitivity[material_mapping==0] = solid_sensitivities
 
-        for i in range(len(points)):
-            interp_trace_G[i] = np.interp(self.master_time,
-                                          self.fw_time,
-                                          trace_G[i])
-            interp_trace_G_adjoint[i] = np.interp(self.master_time,
-                                                  self.bw_time,
-                                                  trace_G_adjoint[i])
 
-        return integrate.simpson(interp_trace_G * interp_trace_G_adjoint,
-                                 dx=(self.master_time[1] - self.master_time[0])) # noqa
+        if len(liquid_points) > 0:
+        # Compute liquid sensitivities
+            forward_P = np.nan_to_num(
+                self.forward_data.load_data(liquid_points,
+                                            channels=['P'],
+                                            in_deg=False))[:,0,:]
+            backward_P = np.nan_to_num(
+                self.backward_data.load_data(liquid_points,
+                                            channels=['P'],
+                                            in_deg=False))[:,0,:]
+            # flip adjpoint in time
+            backward_P = np.flip(backward_P, axis=1)
+
+            interp_forward_P = np.empty(forward_P.shape[:-1] +
+                                        (len(self.master_time),))
+            interp_backward_P = np.empty(backward_P.shape[:-1] +
+                                        (len(self.master_time),))
+
+            for i in range(len(liquid_points)):
+                interp_forward_P[i] = np.interp(self.master_time,
+                                                self.fw_time,
+                                                forward_P[i])
+                interp_backward_P[i] = np.interp(self.master_time,
+                                                self.bw_time,
+                                                backward_P[i])
+            # Get material properties
+            rho = self._find_material_property(liquid_points, 'rho')
+            vp = self._find_material_property(liquid_points, 'vp')
+
+            factor = 1 / (rho * vp**2)
+            liquid_sensitivities = integrate.simpson(interp_forward_P * interp_backward_P * factor[:, np.newaxis],
+                                                    dx=dt)
+            sensitivity[material_mapping==1] = liquid_sensitivities
+
+        return sensitivity
 
     def evaluate_mu(self, points: np.ndarray) -> np.ndarray:
         # K_mu_0 = int_T (grad u^t):(grad u) + (grad u^t):(grad u)^T
@@ -208,13 +229,10 @@ class Kernel():
             index = np.searchsorted(radii, points[:, 0])
         else:
             index = np.searchsorted(-radii, -points[:, 0])
-        # eliminated points outside of the domain
+        # eliminate points outside of the domain
         mask = np.logical_or(index > 0, index < len(radii))
         filtered_index = index[mask]
 
-        rho = np.array(
-            self.forward_data.base_model['DATA']['rho']
-            )[filtered_index - 1]
         vp = np.array(
             self.forward_data.base_model['DATA']['vp']
             )[filtered_index - 1]
@@ -239,12 +257,8 @@ class Kernel():
         mask = np.logical_or(index > 0, index < len(radii))
         filtered_index = index[mask]
 
-        rho = np.array(
-            self.forward_data.base_model['DATA']['rho']
-            )[filtered_index - 1]
-        vp = np.array(
-            self.forward_data.base_model['DATA']['vp']
-            )[filtered_index - 1]
+        rho = self._find_material_property(points, 'rho')
+        vp = self._find_material_property(points, 'vp')
 
         return 2 * rho * vp * self.evaluate_lambda(points)
 
@@ -942,11 +956,14 @@ class Kernel():
             integrand, dx=(self.master_time[1] - self.master_time[0])
             )
 
-    def evaluate_on_slice(self, source_location: list = None,
+    def evaluate_on_slice(self, parameter: str,
+                          source_location: list = None,
                           station_location: list = None,
                           resolution: int = 50, domains: list = None,
                           log_plot: bool = False, low_range: float = 0.1,
-                          high_range: float = 0.999):
+                          high_range: float = 0.999, save_data: bool = True,
+                          filename: str = 'slice_kernel',
+                          plot_data: bool = True):
         # Create default domains if None were given
         if domains is None:
             domains = []
@@ -957,7 +974,6 @@ class Kernel():
 
         # Create source and station if none were given
         R_max = np.max(domains[:, 1])
-        R_min = np.min(domains[:, 0])
         if source_location is None and station_location is None:
             source_location = np.array([R_max,
                                         np.radians(
@@ -969,93 +985,61 @@ class Kernel():
                                              self.backward_data.source_lat),
                                          np.radians(
                                              self.backward_data.source_lon)])
+        else:
+            source_location = np.array(source_location)
+            station_location = np.array(station_location)
 
-        # Create e slice mesh
-        mesh = SliceMesh(source_location, station_location,
-                         domains, resolution)
+        # Create a slice mesh
+        mesh = SliceMesh(point1=source_location,
+                         point2=station_location,
+                         domains=domains,
+                         resolution=resolution)
 
         # Compute sensitivity values on the slice (Slice frame)
-        inplane_sensitivity = np.full((mesh.resolution, mesh.resolution),
-                                      fill_value=np.NaN)
-        data = self.evaluate_vs(mesh.points)
-        np.savetxt('slice_kernel.csv', data, delimiter=',')
+        data = self.kernel_types[parameter](mesh.points)
+        # data = self.evaluate_rho_0(mesh.points)
 
-        #data = np.loadtxt('/home/adrian/PhD/AxiSEM3D/slice_kernel.csv', delimiter=' ')
+        data_frame, metadata = self._create_dataframe(mesh, data)
 
-        # Distribute the values in the matrix that will be plotted
-        index = 0
-        for [index1, index2], _ in zip(mesh.indices, mesh.points):
-            inplane_sensitivity[index1, index2] = data[index]
-            index += 1
+        if save_data:
+            data_frame.to_hdf(filename + '.h5', key='df', mode='w')
+            metadata.to_hdf(filename + '.h5', key='metadata', mode='a')
+        if plot_data:
+            mesh.plot_on_mesh(data_frame['data'].values,
+                              log_plot=log_plot,
+                              low_range=low_range,
+                              high_range=high_range)
 
-        if log_plot is False:
-            _, cbar_max = self._find_range(inplane_sensitivity,
-                                           percentage_min=0,
-                                           percentage_max=1)
-            cbar_max *= (high_range * high_range)
-            cbar_min = -cbar_max
-            plt.figure()
-            contour = plt.contourf(mesh.inplane_DIM1, mesh.inplane_DIM2,
-                                   np.nan_to_num(inplane_sensitivity),
-                                   levels=np.linspace(cbar_min, cbar_max, 100),
-                                   cmap='RdBu_r', extend='both')
-        else:
-            log_10_sensitivity = np.log10(np.abs(inplane_sensitivity))
-            cbar_min, cbar_max = self._find_range(log_10_sensitivity,
-                                                  percentage_min=low_range,
-                                                  percentage_max=high_range)
+        return data_frame
 
-            plt.figure()
-            contour = plt.contourf(mesh.inplane_DIM1, mesh.inplane_DIM2,
-                                   log_10_sensitivity,
-                                   levels=np.linspace(cbar_min, cbar_max, 100),
-                                   cmap='RdBu_r', extend='both')
+    def _create_dataframe(self, mesh, data):
+        x_coords = [coord[0] for coord in mesh.points]
+        y_coords = [coord[1] for coord in mesh.points]
+        z_coords = [coord[2] for coord in mesh.points]
+        index_0 = [index[0] for index in mesh.indices]
+        index_1 = [index[1] for index in mesh.indices]
 
-        plt.scatter(np.dot(mesh.point1, mesh.base1),
-                    np.dot(mesh.point1, mesh.base2))
-        plt.scatter(np.dot(mesh.point2, mesh.base1),
-                    np.dot(mesh.point2, mesh.base2))
-        cbar = plt.colorbar(contour)
+        df = pd.DataFrame({
+            'data': list(data),
+            'x_coord': x_coords,
+            'y_coord': y_coords,
+            'z_coord': z_coords,
+            'index_0': index_0,
+            'index_1': index_1
+        })
 
-        cbar_ticks = np.linspace(cbar_min, cbar_max, 5)  # Example tick values
-        cbar_ticklabels = ["{:.2e}".format(cbar_tick) for
-                           cbar_tick in cbar_ticks] # Example tick labels
-        cbar.set_ticks(cbar_ticks)
-        cbar.set_ticklabels(cbar_ticklabels)
-        cbar.set_label('Intensity')
-        plt.show()
+        # Store metadata in a Series
+        metadata = pd.Series({
+            'mesh_type': mesh.type,
+            'point1': mesh.point1,
+            'point2': mesh.point2,
+            'resolution': mesh.resolution,
+            'domains': mesh.domains,
+            'coord_in': mesh.coord_in,
+            'coord_out': mesh.coord_out,
+        })
 
-    def _find_range(self, arr, percentage_min, percentage_max):
-        """
-        Find the smallest value in the array based on the given percentage.
-
-        Args:
-            arr (ndarray): The input array.
-            percentage (float): The percentage of values to consider.
-
-        Returns:
-            smallest_value (float or None): The smallest value based on the
-            given percentage, or None if the array is empty or
-            contains no finite values.
-        """
-        # Flatten the array to a 1D array
-        flattened = arr[np.isfinite(arr)].flatten()
-
-        if len(flattened) == 0:
-            return None
-
-        # Sort the flattened array in ascending order
-        sorted_arr = np.sort(flattened)
-
-        # Compute the index that corresponds to percentage of the values
-        percentile_index_min = int((len(sorted_arr)-1) * percentage_min)
-        percentile_index_max = int((len(sorted_arr)-1) * percentage_max)
-
-        # Get the value at the computed index
-        smallest_value = sorted_arr[percentile_index_min]
-        biggest_value = sorted_arr[percentile_index_max]
-
-        return [smallest_value, biggest_value]
+        return df, metadata
 
     def _point_in_region_of_interest(self, point) -> bool:
         if random.random() < 0.01:
@@ -1075,3 +1059,19 @@ class Kernel():
                 return False
         else:
             return False
+
+    def _find_material_property(self, points, material_property):
+        # Find the indices within the basemodel where the points are located
+        radii = np.array(self.forward_data.base_model['DATA']['radius'])
+        is_increasing = radii[0] < radii[1]
+        if is_increasing:
+            index = np.searchsorted(radii, points[:, 0])
+        else:
+            index = np.searchsorted(-radii, -points[:, 0])
+        # eliminated points outside of the domain
+        mask = np.logical_or(index > 0, index < len(radii))
+        filtered_index = index[mask]
+
+        return np.array(
+            self.forward_data.base_model['DATA'][material_property]
+            )[filtered_index - 1]

@@ -51,108 +51,108 @@ time_axis:
 list_of_sources:
     #==========================================================================#
     # this key can be arbitrary
-- pointZ:
+  - pointZ:
         # source location
-    location:
-      latitude_longitude: [0, 50]
-      depth: 0
-      ellipticity: true
-      depth_below_solid_surface: true
-      undulated_geometry: true
+      location:
+        latitude_longitude: [0, 50]
+        depth: 0
+        ellipticity: true
+        depth_below_solid_surface: true
+        undulated_geometry: true
         # source mechanism
-    mechanism:
-      type: FORCE_VECTOR
-      data: [1, 0, 0]
-      unit: 1
+      mechanism:
+        type: FORCE_VECTOR
+        data: [1, 0, 0]
+        unit: 1
         # source time function
-    source_time_function:
-      class_name: StreamSTF
+      source_time_function:
+        class_name: StreamSTF
             # -------------------------- #
             # parameters for GaussianSTF #
             # -------------------------- #
-      half_duration: 10.
-      decay_factor: 1.628
-      time_shift: 0.
-      use_derivative_integral: ERF
+        half_duration: 10.
+        decay_factor: 1.628
+        time_shift: 0.
+        use_derivative_integral: ERF
             # ------------------------ #
             # parameters for StreamSTF #
             # ------------------------ #
-      ascii_data_file: STF/Z.txt
-      padding: FIRST_LAST
+        ascii_data_file: STF/Z.txt
+        padding: FIRST_LAST
             # ------------------------- #
             # parameters for NetCDF_STF #
             # ------------------------- #
-      nc_data_file: stf_file.nc
-      nc_var_times: stf_times
-      nc_var_data: stf_data
-      chunk_size: NONE
-- pointR:
+        nc_data_file: stf_file.nc
+        nc_var_times: stf_times
+        nc_var_data: stf_data
+        chunk_size: NONE
+  - pointR:
         # source location
-    location:
-      latitude_longitude: [0, 50]
-      depth: 0
-      ellipticity: true
-      depth_below_solid_surface: true
-      undulated_geometry: true
+      location:
+        latitude_longitude: [0, 50]
+        depth: 0
+        ellipticity: true
+        depth_below_solid_surface: true
+        undulated_geometry: true
         # source mechanism
-    mechanism:
-      type: FORCE_VECTOR
-      data: [0, 1, 0]
-      unit: 1
+      mechanism:
+        type: FORCE_VECTOR
+        data: [0, 1, 0]
+        unit: 1
         # source time function
-    source_time_function:
-      class_name: StreamSTF
+      source_time_function:
+        class_name: StreamSTF
             # -------------------------- #
             # parameters for GaussianSTF #
             # -------------------------- #
-      half_duration: 10.
-      decay_factor: 1.628
-      time_shift: 0.
-      use_derivative_integral: ERF
+        half_duration: 10.
+        decay_factor: 1.628
+        time_shift: 0.
+        use_derivative_integral: ERF
             # ------------------------ #
             # parameters for StreamSTF #
             # ------------------------ #
-      ascii_data_file: STF/R.txt
-      padding: FIRST_LAST
+        ascii_data_file: STF/R.txt
+        padding: FIRST_LAST
             # ------------------------- #
             # parameters for NetCDF_STF #
             # ------------------------- #
-      nc_data_file: stf_file.nc
-      nc_var_times: stf_times
-      nc_var_data: stf_data
-      chunk_size: NONE
-- pointT:
+        nc_data_file: stf_file.nc
+        nc_var_times: stf_times
+        nc_var_data: stf_data
+        chunk_size: NONE
+  - pointT:
         # source location
-    location:
-      latitude_longitude: [0, 50]
-      depth: 0
-      ellipticity: true
-      depth_below_solid_surface: true
-      undulated_geometry: true
+      location:
+        latitude_longitude: [0, 50]
+        depth: 0
+        ellipticity: true
+        depth_below_solid_surface: true
+        undulated_geometry: true
         # source mechanism
-    mechanism:
-      type: FORCE_VECTOR
-      data: [0, 0, 1]
-      unit: 1
+      mechanism:
+        type: FORCE_VECTOR
+        data: [0, 0, 1]
+        unit: 1
         # source time function
-    source_time_function:
-      class_name: StreamSTF
+      source_time_function:
+        class_name: StreamSTF
             # -------------------------- #
             # parameters for GaussianSTF #
             # -------------------------- #
-      half_duration: 10.
-      decay_factor: 1.628
-      time_shift: 0.
-      use_derivative_integral: ERF
+        half_duration: 10.
+        decay_factor: 1.628
+        time_shift: 0.
+        use_derivative_integral: ERF
             # ------------------------ #
             # parameters for StreamSTF #
             # ------------------------ #
-      ascii_data_file: STF/T.txt
-      padding: FIRST_LAST
+        ascii_data_file: STF/T.txt
+        padding: FIRST_LAST
             # ------------------------- #
             # parameters for NetCDF_STF #
             # ------------------------- #
-      nc_data_file: stf_file.nc
-      nc_var_times: stf_times
-      nc_var_data: stf_data
-      chunk_size: NONE
+        nc_data_file: stf_file.nc
+        nc_var_times: stf_times
+        nc_var_data: stf_data
+        chunk_size: NONE

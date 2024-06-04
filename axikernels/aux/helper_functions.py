@@ -2,6 +2,37 @@ from obspy.taup import TauPyModel
 import sys
 import numpy as np
 
+def find_range(arr, percentage_min, percentage_max):
+    """
+    Find the smallest value in the array based on the given percentage.
+
+    Args:
+        arr (ndarray): The input array.
+        percentage (float): The percentage of values to consider.
+
+    Returns:
+        smallest_value (float or None): The smallest value based on the
+        given percentage, or None if the array is empty or
+        contains no finite values.
+    """
+    # Flatten the array to a 1D array
+    flattened = arr[np.isfinite(arr)].flatten()
+
+    if len(flattened) == 0:
+        return None
+
+    # Sort the flattened array in ascending order
+    sorted_arr = np.sort(flattened)
+
+    # Compute the index that corresponds to percentage of the values
+    percentile_index_min = int((len(sorted_arr)-1) * percentage_min)
+    percentile_index_max = int((len(sorted_arr)-1) * percentage_max)
+
+    # Get the value at the computed index
+    smallest_value = sorted_arr[percentile_index_min]
+    biggest_value = sorted_arr[percentile_index_max]
+
+    return [smallest_value, biggest_value]
 
 def find_phase_window(event_depth, event_latitude, event_longitude,
                       station_latitude, station_longitude, T, phase):

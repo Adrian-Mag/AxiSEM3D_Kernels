@@ -482,25 +482,8 @@ class ElementOutput(AxiSEM3DOutput):
         points = points.astype(np.float64)
 
         # Transforms points to cylindrical coords in source frame
-        if frame == 'geographic':
-            if coords == 'spherical':
-                if in_deg is True:
-                    points[:, 1:] = np.deg2rad(points[:, 1:])
-                points = sph2cart_mpmath(points)
-            points = cart2cyl_mpmath(
-                cart_geo2cart_src(points=points,
-                                  rotation_matrix=self._rotation_matrix)
-            )
-            logging.info("Transformed points to cylindrical coordinates "
-                         "in source frame.")
-
-        # Convert the string representation to a NumPy array of floats (I think
-        # this was to go from mpmath to numpy format ...)
-        points = np.vectorize(lambda x: float(str(x)))(points)
-        # We add pi/2 beacause by default cart2polar sets theta to zero along
-        # the s axis, but in the inparam.output theta is set to 0 at the z axis
-        inplane_points = cart2polar_mpmath(points[:, 0], points[:, 1])
-        inplane_points[:, 1] += np.pi/2
+        points, inplane_points = self._project_on_inplane(points, degrees=in_deg,
+                                                        frame=frame, coords=coords)
 
         # Separate inplane points by the element group they are part of
         point_group_mapping = self._separate_by_inplane_domain(inplane_points)
@@ -602,7 +585,7 @@ class ElementOutput(AxiSEM3DOutput):
             not_in_any_domain = True
             for domain_idx, domain in enumerate(domains):
                 r_min, r_max, theta_min, theta_max = domain
-                tolerance = 1e-6 # Tolerance for floating point comparison
+                tolerance = 1e-6  # Tolerance for floating point comparison
                 if (r_min - tolerance <= radius <= r_max + tolerance and
                     theta_min <= theta <= theta_max and
                         not_in_any_domain):
@@ -614,6 +597,41 @@ class ElementOutput(AxiSEM3DOutput):
                 group_mapping[i] = -1
 
         return np.array(group_mapping)
+
+    def _group_by_material(self, points: np.ndarray) -> np.ndarray:
+        # Separate points by SOLID/FLUID. Assumes points are in [rad, lat, lon]
+        # in degrees geographic spherical
+        _, inplane_points = self._project_on_inplane(points)
+        group_mapping = self._separate_by_inplane_domain(inplane_points)
+        group_mapping_to_material = [0 if self.element_groups_info[group]['wavefields']['medium'] == 'SOLID'
+                                        else 1 for group in self.element_groups]
+        material_mapping = np.array([group_mapping_to_material[group] for group in group_mapping])
+        return material_mapping
+
+    def _project_on_inplane(self, points: np.ndarray, degrees: bool = True,
+                            frame: str = 'geographic',
+                            coords: str = 'spherical') -> np.ndarray:
+        # points must have shape (n,3) where n is the number of points
+        points_copy = points.copy()
+        if degrees:
+            points_copy[:, 1:] = np.deg2rad(points_copy[:, 1:])
+
+        if frame == 'geographic':
+            if coords == 'spherical':
+                points_copy = sph2cart_mpmath(points_copy)
+            points_copy = cart2cyl_mpmath(
+                cart_geo2cart_src(points=points_copy,
+                                  rotation_matrix=self._rotation_matrix)
+            )
+        # Convert the string representation to a NumPy array of floats (I think
+        # this was to go from mpmath to numpy format ...)
+        points_copy = np.vectorize(lambda x: float(str(x)))(points_copy)
+        # We add pi/2 beacause by default cart2polar sets theta to zero along
+        # the s axis, but in the inparam.output theta is set to 0 at the z axis
+        inplane_points = cart2polar_mpmath(points_copy[:, 0], points_copy[:, 1])
+        inplane_points[:, 1] += np.pi/2
+
+        return points_copy, inplane_points
 
     def load_data_from_element_group(self, points: np.ndarray, group: str,
                                      channel_slices: list = None,
@@ -901,9 +919,9 @@ class ElementOutput(AxiSEM3DOutput):
 
         return inplane_field
 
-    def animation(self, source_location: np.ndarray=None, station_location: np.ndarray=None, channels: list=['U'],
-                          name: str='video', video_duration: int=20, frame_rate: int=10,
-                          resolution: int=100, domains: list=None,
+    def animation(self, source_location: np.ndarray=None, station_location: np.ndarray=None, channels: list=['UZ'],
+                          name: str='video', video_duration: int=10, frame_rate: int=10,
+                          resolution: int=300, domains: list=None,
                           lower_range: float=0.6, upper_range: float=0.9999,
                           paralel_processing: bool=False, mesh_type: str='slice'):
         """
@@ -937,6 +955,11 @@ class ElementOutput(AxiSEM3DOutput):
         if source_location is None and station_location is None:
             source_location = np.array([R_max, 0, 0])
             station_location = np.array([R_max, 0, np.radians(30)])
+        else:
+            source_location = np.array(source_location, dtype=float)
+            source_location[1:] = np.deg2rad(source_location[1:])
+            station_location = np.array(station_location, dtype=float)
+            station_location[1:] = np.deg2rad(station_location[1:])
 
         # Get time slices from frame rate and video_duration assuming that the
         # video will include the entire time axis. We also assume that each
