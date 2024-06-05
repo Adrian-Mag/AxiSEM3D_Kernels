@@ -4,6 +4,10 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from ..aux.coordinate_transforms import sph2cart, cart2sph
 from ..aux.helper_functions import find_range
+from mayavi import mlab
+from scipy.spatial import ConvexHull
+from matplotlib import cm
+from scipy import stats
 
 class Mesh(ABC):
 
@@ -18,7 +22,8 @@ class SliceMesh(Mesh):
                  point1: np.ndarray = None,
                  point2: np.ndarray = None,
                  domains: list = None, resolution: int = None,
-                coord_in: str='spherical', coord_out: str='spherical') -> None:
+                 coord_in: str='spherical', coord_out: str='spherical',
+                 degrees: bool=True) -> None:
         """
         Create a mesh for a slice of Earth within a specified radius range and
         resolution. At the bases there is a square 2D uniform mesh whose
@@ -45,8 +50,8 @@ class SliceMesh(Mesh):
             self.data = data_frame['data'].values
             self.coord_in = metadata['coord_in'][0]
             self.coord_out = metadata['coord_out'][0]
-            self.point1 = metadata['point1'][0]
-            self.point2 = metadata['point2'][0]
+            self.point1 = metadata['point1']
+            self.point2 = metadata['point2']
             self.domains = metadata['domains']
             self.resolution = metadata['resolution']
             self._compute_basis()
@@ -58,8 +63,14 @@ class SliceMesh(Mesh):
             self.coord_out = coord_out
             # Form vectors for the two points (Earth frame)
             if coord_in == 'spherical':
-                self.point1 = sph2cart(np.array(point1))
-                self.point2 = sph2cart(np.array(point2))
+                if degrees:
+                    point1[1::] = np.deg2rad(point1[1::])
+                    point2[1::] = np.deg2rad(point2[1::])
+                    self.point1 = sph2cart(np.array(point1))
+                    self.point2 = sph2cart(np.array(point2))
+                else:
+                    self.point1 = sph2cart(np.array(point1))
+                    self.point2 = sph2cart(np.array(point2))
             else:
                 self.point1 = np.array(point1)
                 self.point2 = np.array(point2)
@@ -179,21 +190,125 @@ class SliceMesh(Mesh):
         cbar.set_label('Intensity')
         plt.show()
 
-class SphereMesh(Mesh):
+    def save_data(self, filename: str, data):
+        df, metadata = self._create_dataframe(data)
+        df.to_hdf(filename + '.h5', key='df', mode='w')
+        metadata.to_hdf(filename + '.h5', key='metadata', mode='a')
 
-    def __init__(self, resolution: int) -> None:
-        self.type = 'sphere'
+    def _create_dataframe(self, data):
+        radius = [coord[0] for coord in self.points]
+        lat = [coord[1] for coord in self.points]
+        lon = [coord[2] for coord in self.points]
+        index_0 = [index[0] for index in self.indices]
+        index_1 = [index[1] for index in self.indices]
 
-        self.resolution = resolution
-        self._compute_mesh()
+        df = pd.DataFrame({
+            'data': list(data),
+            'radius': radius,
+            'lat': lat,
+            'lon': lon,
+            'index_0': index_0,
+            'index_1': index_1
+        })
 
-    def _compute_mesh(self):
-        # Output is in format (lat, lon) in radians
+        # Store metadata in a Series
+        metadata = pd.Series({
+            'mesh.type': self.type,
+            'point1': self.point1,
+            'point2': self.point2,
+            'resolution': self.resolution,
+            'domains': self.domains,
+            'coord_in': self.coord_in,
+            'coord_out': self.coord_out,
+        })
+
+        return df, metadata
+
+class SphereMesh:
+    def __init__(self, n=1, radius=1, domain=None,
+                 degrees=True):
+        self.radius = radius
+        self.domain = domain
+        if domain is not None:
+            self.domain = np.array(domain)
+            if degrees:
+                self.domain = np.deg2rad(self.domain)
+        self.points = self.fibonacci_sphere(n)
+
+    def fibonacci_sphere(self, n=1):
+        # Points are returned in [rad, lat, lon] format in radians!
         points = []
-        lats = np.linspace(-np.pi, np.pi, self.resolution)
-        for lat in lats:
-            lons = np.linspace(-np.pi, np.pi, int(self.resolution * np.sin(lat)))
-            for lon in lons:
+        phi = (np.sqrt(5.0) - 1.0) / 2.0  # golden ratio
+        for i in range(-n, n):
+            lat = np.arcsin(2*i/(2*n+1))
+            lon = 2 * np.pi * i / phi
+            # Compute the sine and cosine of the angle
+            sin = np.sin(lon)
+            cos = np.cos(lon)
+
+            # Use arctan2 to get the angle in the correct range
+            lon = np.arctan2(sin, cos)
+
+            if self.domain is not None:
+                if (lat > self.domain[0] and
+                    lat < self.domain[1] and
+                    lon > self.domain[2] and
+                    lon < self.domain[3]):
+
+                    points.append([lat, lon])
+            else:
                 points.append([lat, lon])
 
-        self.points =  np.array(points)
+        return np.array(points)
+
+    def plot(self):
+        # Convert (lat, lon) to (x, y, z)
+        x = self.radius * np.cos(self.points[:, 0]) * np.cos(self.points[:, 1])
+        y = self.radius * np.cos(self.points[:, 0]) * np.sin(self.points[:, 1])
+        z = self.radius * np.sin(self.points[:, 0])
+
+        # Create a new figure
+        mlab.figure(size=(600, 600))
+
+        # Plot the points
+        mlab.points3d(x, y, z, color=(0, 0, 1), scale_factor=self.radius/50)
+
+        # Show the figure
+        mlab.show()
+
+    def plot_on_mesh(self, data: list = None, gamma: float = 1.1,
+                     remove_outliers: bool = False):
+        # Convert (lat, lon) to (x, y, z)
+        x = self.radius * np.cos(self.points[:, 0]) * np.cos(self.points[:, 1])
+        y = self.radius * np.cos(self.points[:, 0]) * np.sin(self.points[:, 1])
+        z = self.radius * np.sin(self.points[:, 0])
+
+        # Combine the x, y, z coordinates into a single array
+        points = np.stack((x, y, z), axis=-1)
+
+        # Compute the convex hull of the points
+        hull = ConvexHull(points)
+
+        # Use the simplices attribute of the result to get the triangles
+        triangles = hull.simplices
+
+        if remove_outliers:
+            z_scores = np.abs(stats.zscore(data))
+
+            # Threshold is set to 3 standard deviations
+            outliers = z_scores > 3
+
+            # Get only the values that are not considered outliers
+            data_no_outliers = data[~outliers]
+            # Calculate the color values based on the interpolated_kernel data
+            max_range = np.abs(data_no_outliers).max() * gamma
+        else:
+            max_range = np.abs(data).max() * gamma
+        # Create the triangular mesh.
+        my_triangular_mesh = mlab.triangular_mesh(x, y, z, triangles, scalars=data,
+                                                  colormap='RdBu', vmin=-max_range, vmax=max_range)
+
+        # my_triangular_mesh.module_manager.scalar_lut_manager.lut.table = colors_reshaped # noqa
+
+        # Display the plot.
+        mlab.show()

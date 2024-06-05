@@ -15,7 +15,6 @@ from scipy.interpolate import interp2d
 from scipy.interpolate import RectBivariateSpline
 from mpl_toolkits.basemap import Basemap
 from matplotlib import cm
-matplotlib.use('Qtagg')
 
 
 class Kernel():
@@ -34,6 +33,7 @@ class Kernel():
                              'rho': self.evaluate_rho,
                              'vp': self.evaluate_vp,
                              'vs': self.evaluate_vs,
+                             'dV': self.evaluate_K_dv
                              }
 
     def _compute_times(self):
@@ -130,7 +130,7 @@ class Kernel():
                                                     self.bw_time,
                                                     trace_G_adjoint[i])
             dt = self.master_time[1] - self.master_time[0]
-            solid_sensitivities = integrate.simpson(interp_trace_G * interp_trace_G_adjoint,
+            solid_sensitivities = - integrate.simpson(interp_trace_G * interp_trace_G_adjoint,
                                     dx=dt) # noqa
             sensitivity[material_mapping==0] = solid_sensitivities
 
@@ -221,7 +221,7 @@ class Kernel():
                                 interp_G_forward.transpose(0, 2, 1, 3)),
                             axis=(1, 2))
             dt = self.master_time[1] - self.master_time[0]
-            solid_sensitivities = integrate.simpson(integrand, dx=dt)
+            solid_sensitivities = - integrate.simpson(integrand, dx=dt)
             sensitivity[material_mapping==0] = solid_sensitivities
 
         if len(liquid_points) > 0:
@@ -361,6 +361,13 @@ class Kernel():
                                  lat, lon in points])
 
         return (upper_points, lower_points)
+
+    def evaluate_on_sphere_2(self, n: int, radius: float, parameter: str):
+        mesh = SphereMesh(n, radius)
+        # Compute sensitivity values on the slice (Slice frame)
+        data = self.kernel_types[parameter](mesh.points, radius)
+
+        return mesh, data
 
     def evaluate_on_sphere(self, resolution: int, radius: int):
         # Compute points on spherical mesh
@@ -841,7 +848,8 @@ class Kernel():
         # Get limit points
         upper_points, lower_points = self._form_limit_points(points, radius)
 
-        # Find rho_upper and lower (assuming radius is in decreasing order)
+        # Find properties above and below the discontinuity (assuming radius is
+        # in decreasing order)
         radius_index = self.forward_data.base_model['DATA']['radius'].index(radius) # noqa
         rho_upper, rho_lower = np.array(
             self.forward_data.base_model['DATA']['rho']
@@ -866,7 +874,6 @@ class Kernel():
                 self.evaluate_lambda(points=lower_points) + \
                 rho_lower * vs_lower**2 * self.evaluate_mu(points=lower_points)
         elif disc_type == 'FS':
-            # wrong
             K_dv_upper = rho_upper * \
                 self.evaluate_rho_0(points=upper_points) + \
                 rho_upper * (vp_upper**2 - 2*vs_upper**2) * \
@@ -877,7 +884,6 @@ class Kernel():
                 rho_lower * vp_lower**2 * \
                 self.evaluate_lambda(points=lower_points)
         elif disc_type == 'SF':
-            # wrong
             K_dv_upper = rho_upper * \
                 self.evaluate_rho_0(points=upper_points) + \
                 6 * rho_upper * vp_upper**2 * \
@@ -1003,6 +1009,9 @@ class Kernel():
                           high_range: float = 0.999, save_data: bool = True,
                           filename: str = 'slice_kernel',
                           plot_data: bool = True):
+        # We first create a slice mesh, which needs point1, point2, domains and
+        # resolution
+
         # Create default domains if None were given
         if domains is None:
             domains = []
@@ -1010,8 +1019,7 @@ class Kernel():
                 domains.append(element_group['elements']['vertical_range'] +
                                [-2*np.pi, 2*np.pi])
         domains = np.array(domains)
-
-        # Create source and station if none were given
+        # Create point1 and point2 if none were given
         R_max = np.max(domains[:, 1])
         if source_location is None and station_location is None:
             source_location = np.array([R_max,
@@ -1036,13 +1044,11 @@ class Kernel():
 
         # Compute sensitivity values on the slice (Slice frame)
         data = self.kernel_types[parameter](mesh.points)
-        # data = self.evaluate_rho_0(mesh.points)
-
-        data_frame, metadata = self._create_dataframe(mesh, data)
-
+        # Create a dataframe and metadata of the mesh + sensitivity
+        data_frame, metadata = mesh._create_dataframe(data)
+        # Save the infor and plot the sensitivity if desired
         if save_data:
-            data_frame.to_hdf(filename + '.h5', key='df', mode='w')
-            metadata.to_hdf(filename + '.h5', key='metadata', mode='a')
+            mesh.save_data(filename, data_frame, metadata)
         if plot_data:
             mesh.plot_on_mesh(data_frame['data'].values,
                               log_plot=log_plot,
@@ -1050,35 +1056,6 @@ class Kernel():
                               high_range=high_range)
 
         return data_frame
-
-    def _create_dataframe(self, mesh, data):
-        x_coords = [coord[0] for coord in mesh.points]
-        y_coords = [coord[1] for coord in mesh.points]
-        z_coords = [coord[2] for coord in mesh.points]
-        index_0 = [index[0] for index in mesh.indices]
-        index_1 = [index[1] for index in mesh.indices]
-
-        df = pd.DataFrame({
-            'data': list(data),
-            'x_coord': x_coords,
-            'y_coord': y_coords,
-            'z_coord': z_coords,
-            'index_0': index_0,
-            'index_1': index_1
-        })
-
-        # Store metadata in a Series
-        metadata = pd.Series({
-            'mesh_type': mesh.type,
-            'point1': mesh.point1,
-            'point2': mesh.point2,
-            'resolution': mesh.resolution,
-            'domains': mesh.domains,
-            'coord_in': mesh.coord_in,
-            'coord_out': mesh.coord_out,
-        })
-
-        return df, metadata
 
     def _point_in_region_of_interest(self, point) -> bool:
         if random.random() < 0.01:
