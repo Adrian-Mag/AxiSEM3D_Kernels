@@ -24,7 +24,7 @@
 #       2) ANALYTICAL: analytical Nr(s,z) defined in NrFieldAnalytical.cpp
 #       3) POINTWISE:  Nr provided at discrete control points
 #       4) STRUCTURED: Nr provided on a structured grid
-type_Nr: ANALYTICAL
+type_Nr: CONSTANT
 
 # what: bound Nr(s,z) from above by inplane resolution
 # type: bool

@@ -82,7 +82,6 @@ class SliceMesh(Mesh):
             self._compute_basis()
             self._compute_mesh(domains, resolution, coord_out)
 
-
     def _compute_basis(self):
         # Do Gram-Schmidt orthogonalization to form slice basis (Earth frame)
         self.base1 = self.point1 / np.linalg.norm(self.point1)
@@ -90,7 +89,6 @@ class SliceMesh(Mesh):
         self.base2 /= np.linalg.norm(self.base2)
         # base1 will be along the index1 in the inplane_DIM matrices and base2
         # along index2
-
 
     def _compute_mesh(self, domains: list, resolution: int, coord_out: str='spherical'):
         # Find the limits of the union of domains
@@ -225,15 +223,27 @@ class SliceMesh(Mesh):
         return df, metadata
 
 class SphereMesh:
-    def __init__(self, n=1, radius=1, domain=None,
-                 degrees=True):
-        self.radius = radius
-        self.domain = domain
-        if domain is not None:
-            self.domain = np.array(domain)
-            if degrees:
-                self.domain = np.deg2rad(self.domain)
-        self.points = self.fibonacci_sphere(n)
+    def __init__(self, data_frame_path: str=None,
+                  radius: float=1, n: int=1000,
+                  domain=None, degrees=True):
+        self.type = 'sphere'
+        if data_frame_path is not None:
+            data_frame = pd.read_hdf(data_frame_path, 'df')
+            metadata = pd.read_hdf(data_frame_path, 'metadata')
+            self.n = metadata['n']
+            self.data = data_frame['data'].values
+            self.radius = metadata['radius']
+            self.domain = metadata['domain']
+            self.points = self.fibonacci_sphere(self.n)
+        else:
+            self.n = n
+            self.radius = radius
+            self.domain = domain
+            if domain is not None:
+                self.domain = np.array(domain)
+                if degrees:
+                    self.domain = np.deg2rad(self.domain)
+            self.points = self.fibonacci_sphere(n)
 
     def fibonacci_sphere(self, n=1):
         # Points are returned in [rad, lat, lon] format in radians!
@@ -277,7 +287,13 @@ class SphereMesh:
         mlab.show()
 
     def plot_on_mesh(self, data: list = None, gamma: float = 1.1,
-                     remove_outliers: bool = False):
+                     remove_outliers: bool = True):
+        if data is None:
+            if self.data is None:
+                raise ValueError('No data to plot.')
+            else:
+                data = self.data
+
         # Convert (lat, lon) to (x, y, z)
         x = self.radius * np.cos(self.points[:, 0]) * np.cos(self.points[:, 1])
         y = self.radius * np.cos(self.points[:, 0]) * np.sin(self.points[:, 1])
@@ -289,9 +305,9 @@ class SphereMesh:
         # Compute the convex hull of the points
         hull = ConvexHull(points)
 
-        # Use the simplices attribute of the result to get the triangles
         triangles = hull.simplices
 
+        # Use the simplices attribute of the result to get the triangles
         if remove_outliers:
             z_scores = np.abs(stats.zscore(data))
 
@@ -312,3 +328,28 @@ class SphereMesh:
 
         # Display the plot.
         mlab.show()
+
+    def save_data(self, filename: str, data):
+        df, metadata = self._create_dataframe(data)
+        df.to_hdf(filename + '.h5', key='df', mode='w')
+        metadata.to_hdf(filename + '.h5', key='metadata', mode='a')
+
+    def _create_dataframe(self, data):
+        lat = [coord[0] for coord in self.points]
+        lon = [coord[1] for coord in self.points]
+
+        df = pd.DataFrame({
+            'data': list(data),
+            'lat': lat,
+            'lon': lon,
+        })
+
+        # Store metadata in a Series
+        metadata = pd.Series({
+            'n': self.n,
+            'mesh.type': self.type,
+            'radius': self.radius,
+            'domain': self.domain,
+        })
+
+        return df, metadata

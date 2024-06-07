@@ -164,6 +164,7 @@ class Kernel():
             vp = self._find_material_property(liquid_points, 'vp')
 
             factor = 1 / ((rho**2) * vp**4)
+            dt = self.master_time[1] - self.master_time[0]
             liquid_sensitivities = integrate.simpson(interp_forward_P * interp_backward_P * factor[:, np.newaxis],
                                                     dx=dt)
             sensitivity[material_mapping==1] = liquid_sensitivities
@@ -840,6 +841,9 @@ class Kernel():
 
         return K_rho_0_upper + K_dv_dn_upper - K_rho_0_lower - K_dv_dn_lower
 
+    def evaluate_Kd(self, points: np.ndarray, radius: float) -> np.ndarray:
+        return self.evaluate_K_dn(points, radius) + self.evaluate_K_dv(points, radius)
+
     def evaluate_K_dv(self, points: np.ndarray, radius: float) -> np.ndarray:
 
         # Find the type of the discontinuity
@@ -861,7 +865,7 @@ class Kernel():
             self.forward_data.base_model['DATA']['vp']
             )[[radius_index, radius_index + 1]]
 
-        # Compute the volumetric-geometric kernel
+        # Compute the volumetric-geometric kernel (upper/lower)
         if disc_type == 'SS':
             K_dv_upper = rho_upper * \
                 self.evaluate_rho_0(points=upper_points) + \
@@ -901,105 +905,281 @@ class Kernel():
         # Get limit points
         upper_points, lower_points = self._form_limit_points(points, radius)
 
+        # Find the type of the discontinuity
+        disc_type = self._find_discontinuity_type(radius)
+
         # get forwards and backward waveforms at these points an flip andjoints
         # in time
-        Gr_forward_upper = np.nan_to_num(
-            self.forward_data.load_data(upper_points,
-                                        channels=['GZR', 'GZZ', 'GZT'],
-                                        in_deg=False))
-        Gr_backward_upper = np.nan_to_num(
-            self.backward_data.load_data(upper_points,
-                                         channels=['GZR', 'GZZ', 'GZT'],
-                                         in_deg=False))
-        Tr_forward_upper = np.nan_to_num(
-            self.forward_data.load_data(upper_points,
-                                        channels=['SZR', 'STZ', 'SZZ'],
-                                        in_deg=False))
-        Tr_backward_upper = np.nan_to_num(
-            self.backward_data.load_data(upper_points,
-                                         channels=['SZR', 'STZ', 'SZZ'],
-                                         in_deg=False))
-        Gr_forward_lower = np.nan_to_num(
+
+        if disc_type == 'SS':
+            # Load forward and backward waveforms
+            Gr_forward_upper = np.nan_to_num(
+                self.forward_data.load_data(upper_points,
+                                            channels=['GZR', 'GZZ', 'GZT'],
+                                            in_deg=False))
+            Gr_backward_upper = np.nan_to_num(
+                self.backward_data.load_data(upper_points,
+                                            channels=['GZR', 'GZZ', 'GZT'],
+                                            in_deg=False))
+            Tr_forward_upper = np.nan_to_num(
+                self.forward_data.load_data(upper_points,
+                                            channels=['SZR', 'STZ', 'SZZ'],
+                                            in_deg=False))
+            Tr_backward_upper = np.nan_to_num(
+                self.backward_data.load_data(upper_points,
+                                            channels=['SZR', 'STZ', 'SZZ'],
+                                            in_deg=False))
+            Gr_forward_lower = np.nan_to_num(
             self.forward_data.load_data(lower_points,
                                         channels=['GZR', 'GZT', 'GZZ'],
                                         in_deg=False))
-        Gr_backward_lower = np.nan_to_num(
-            self.backward_data.load_data(lower_points,
-                                         channels=['GZR', 'GZZ', 'GZT'],
-                                         in_deg=False))
-        Tr_forward_lower = np.nan_to_num(
+            Gr_backward_lower = np.nan_to_num(
+                self.backward_data.load_data(lower_points,
+                                            channels=['GZR', 'GZZ', 'GZT'],
+                                            in_deg=False))
+            Tr_forward_lower = np.nan_to_num(
+                self.forward_data.load_data(lower_points,
+                                            channels=['SZR', 'STZ', 'SZZ'],
+                                            in_deg=False))
+            Tr_backward_lower = np.nan_to_num(
+                self.backward_data.load_data(lower_points,
+                                            channels=['SZR', 'STZ', 'SZZ'],
+                                            in_deg=False))
+            # flip adjoints in time
+            Gr_backward_upper = np.flip(Gr_backward_upper, axis=2)
+            Gr_backward_lower = np.flip(Gr_backward_lower, axis=2)
+            Tr_backward_upper = np.flip(Tr_backward_upper, axis=2)
+            Tr_backward_lower = np.flip(Tr_backward_lower, axis=2)
+            # Project on master time
+            Gr_forward_upper_interp = np.empty(Gr_forward_upper.shape[:-1] +
+                                            (len(self.master_time),))
+            Gr_backward_upper_interp = np.empty(Gr_backward_upper.shape[:-1] +
+                                                (len(self.master_time),))
+            Tr_forward_upper_interp = np.empty(Tr_forward_upper.shape[:-1] +
+                                            (len(self.master_time),))
+            Tr_backward_upper_interp = np.empty(Tr_backward_upper.shape[:-1] +
+                                                (len(self.master_time),))
+            Gr_forward_lower_interp = np.empty(Gr_forward_lower.shape[:-1] +
+                                            (len(self.master_time),))
+            Gr_backward_lower_interp = np.empty(Gr_backward_lower.shape[:-1] +
+                                                (len(self.master_time),))
+            Tr_forward_lower_interp = np.empty(Tr_forward_lower.shape[:-1] +
+                                            (len(self.master_time),))
+            Tr_backward_lower_interp = np.empty(Tr_backward_lower.shape[:-1] +
+                                                (len(self.master_time),))
+            for i in range(len(points)):
+                for j in range(3):
+                    Gr_forward_upper_interp[i, j] = np.interp(self.master_time,
+                                                            self.fw_time,
+                                                            Gr_forward_upper[i, j]) # noqa
+                    Gr_backward_upper_interp[i, j] = np.interp(self.master_time,
+                                                            self.bw_time,
+                                                            Gr_backward_upper[i, j]) # noqa
+                    Tr_forward_upper_interp[i, j] = np.interp(self.master_time,
+                                                            self.fw_time,
+                                                            Tr_forward_upper[i, j]) # noqa
+                    Tr_backward_upper_interp[i, j] = np.interp(self.master_time,
+                                                            self.bw_time,
+                                                            Tr_backward_upper[i, j]) # noqa
+                    Gr_forward_lower_interp[i, j] = np.interp(self.master_time,
+                                                            self.fw_time,
+                                                            Gr_forward_lower[i, j]) # noqa
+                    Gr_backward_lower_interp[i, j] = np.interp(self.master_time,
+                                                            self.bw_time,
+                                                            Gr_backward_lower[i, j]) # noqa
+                    Tr_forward_lower_interp[i, j] = np.interp(self.master_time,
+                                                            self.fw_time,
+                                                            Tr_forward_lower[i, j]) # noqa
+                    Tr_backward_lower_interp[i, j] = np.interp(self.master_time,
+                                                            self.bw_time,
+                                                            Tr_backward_lower[i, j]) # noqa
+
+            # Compute the integrand
+            integrand = np.sum(Tr_forward_upper_interp * Gr_backward_upper_interp,
+                            axis=1) + \
+                np.sum(Tr_backward_upper_interp * Gr_forward_upper_interp,
+                    axis=1) - \
+                np.sum(Tr_forward_lower_interp * Gr_backward_lower_interp,
+                    axis=1) - \
+                np.sum(Tr_backward_lower_interp * Gr_forward_lower_interp,
+                    axis=1)
+
+            return -integrate.simpson(
+                integrand, dx=(self.master_time[1] - self.master_time[0])
+                )
+        elif disc_type == 'FS':
+            P_forward_upper = np.nan_to_num(
+                self.forward_data.load_data(upper_points,
+                                            channels=['P'],
+                                            in_deg=False))
+            P_backward_upper = np.nan_to_num(
+                self.backward_data.load_data(upper_points,
+                                            channels=['P'],
+                                            in_deg=False))
+            Gr_forward_lower = np.nan_to_num(
             self.forward_data.load_data(lower_points,
-                                        channels=['SZR', 'STZ', 'SZZ'],
+                                        channels=['GZR', 'GZT', 'GZZ'],
                                         in_deg=False))
-        Tr_backward_lower = np.nan_to_num(
-            self.backward_data.load_data(lower_points,
-                                         channels=['SZR', 'STZ', 'SZZ'],
-                                         in_deg=False))
-
-        # flip adjoints in time
-        Gr_backward_upper = np.flip(Gr_backward_upper, axis=2)
-        Gr_backward_lower = np.flip(Gr_backward_lower, axis=2)
-        Tr_backward_upper = np.flip(Tr_backward_upper, axis=2)
-        Tr_backward_lower = np.flip(Tr_backward_lower, axis=2)
-
-        # Project on master time
-        Gr_forward_upper_interp = np.empty(Gr_forward_upper.shape[:-1] +
-                                           (len(self.master_time),))
-        Gr_backward_upper_interp = np.empty(Gr_backward_upper.shape[:-1] +
+            Gr_backward_lower = np.nan_to_num(
+                self.backward_data.load_data(lower_points,
+                                            channels=['GZR', 'GZZ', 'GZT'],
+                                            in_deg=False))
+            Tr_forward_lower = np.nan_to_num(
+                self.forward_data.load_data(lower_points,
+                                            channels=['SZR', 'STZ', 'SZZ'],
+                                            in_deg=False))
+            Tr_backward_lower = np.nan_to_num(
+                self.backward_data.load_data(lower_points,
+                                            channels=['SZR', 'STZ', 'SZZ'],
+                                            in_deg=False))
+            # flip adjoints in time
+            P_backward_upper = np.flip(P_backward_upper, axis=2)
+            Gr_backward_lower = np.flip(Gr_backward_lower, axis=2)
+            Tr_backward_lower = np.flip(Tr_backward_lower, axis=2)
+            # Project on master time
+            P_forward_upper_interp = np.empty(P_forward_upper.shape[:-1] +
                                             (len(self.master_time),))
-        Tr_forward_upper_interp = np.empty(Tr_forward_upper.shape[:-1] +
-                                           (len(self.master_time),))
-        Tr_backward_upper_interp = np.empty(Tr_backward_upper.shape[:-1] +
+            P_backward_upper_interp = np.empty(P_backward_upper.shape[:-1] +
+                                                (len(self.master_time),))
+            Gr_forward_lower_interp = np.empty(Gr_forward_lower.shape[:-1] +
                                             (len(self.master_time),))
-        Gr_forward_lower_interp = np.empty(Gr_forward_lower.shape[:-1] +
-                                           (len(self.master_time),))
-        Gr_backward_lower_interp = np.empty(Gr_backward_lower.shape[:-1] +
+            Gr_backward_lower_interp = np.empty(Gr_backward_lower.shape[:-1] +
+                                                (len(self.master_time),))
+            Tr_forward_lower_interp = np.empty(Tr_forward_lower.shape[:-1] +
                                             (len(self.master_time),))
-        Tr_forward_lower_interp = np.empty(Tr_forward_lower.shape[:-1] +
-                                           (len(self.master_time),))
-        Tr_backward_lower_interp = np.empty(Tr_backward_lower.shape[:-1] +
+            Tr_backward_lower_interp = np.empty(Tr_backward_lower.shape[:-1] +
+                                                (len(self.master_time),))
+            for i in range(len(points)):
+                for j in range(3):
+                    P_forward_upper_interp[i, j] = np.interp(self.master_time,
+                                                            self.fw_time,
+                                                            Gr_forward_upper[i, j]) # noqa
+                    P_backward_upper_interp[i, j] = np.interp(self.master_time,
+                                                            self.bw_time,
+                                                            Gr_backward_upper[i, j]) # noqa
+                    Gr_forward_lower_interp[i, j] = np.interp(self.master_time,
+                                                            self.fw_time,
+                                                            Gr_forward_lower[i, j]) # noqa
+                    Gr_backward_lower_interp[i, j] = np.interp(self.master_time,
+                                                            self.bw_time,
+                                                            Gr_backward_lower[i, j]) # noqa
+                    Tr_forward_lower_interp[i, j] = np.interp(self.master_time,
+                                                            self.fw_time,
+                                                            Tr_forward_lower[i, j]) # noqa
+                    Tr_backward_lower_interp[i, j] = np.interp(self.master_time,
+                                                            self.bw_time,
+                                                            Tr_backward_lower[i, j]) # noqa
+            # Find properties above and below the discontinuity (assuming radius is
+            # in decreasing order)
+            radius_index = self.forward_data.base_model['DATA']['radius'].index(radius) # noqa
+            rho_upper, rho_lower = np.array(
+                self.forward_data.base_model['DATA']['rho']
+                )[[radius_index, radius_index + 1]]
+            vs_upper, vs_lower = np.array(
+                self.forward_data.base_model['DATA']['vs']
+                )[[radius_index, radius_index + 1]]
+            vp_upper, vp_lower = np.array(
+                self.forward_data.base_model['DATA']['vp']
+                )[[radius_index, radius_index + 1]]
+            factor = (2 - 1.5*(vs_upper/vp_upper)**2) / (3 * rho_upper * vp_upper**2)
+            # Compute the integrand
+            integrand = factor * np.sum(P_forward_upper_interp * P_backward_upper_interp,
+                            axis=1) + \
+                np.sum(Tr_forward_lower_interp * Gr_backward_lower_interp,
+                    axis=1) - \
+                np.sum(Tr_backward_lower_interp * Gr_forward_lower_interp,
+                    axis=1)
+
+            return -integrate.simpson(
+                integrand, dx=(self.master_time[1] - self.master_time[0])
+                )
+        elif disc_type == 'SF':
+            P_forward_lower = np.nan_to_num(
+                self.forward_data.load_data(lower_points,
+                                            channels=['P'],
+                                            in_deg=False))
+            P_backward_lower = np.nan_to_num(
+                self.backward_data.load_data(lower_points,
+                                            channels=['P'],
+                                            in_deg=False))
+            Gr_forward_upper = np.nan_to_num(
+            self.forward_data.load_data(upper_points,
+                                        channels=['GZR', 'GZT', 'GZZ'],
+                                        in_deg=False))
+            Gr_backward_upper = np.nan_to_num(
+                self.backward_data.load_data(upper_points,
+                                            channels=['GZR', 'GZZ', 'GZT'],
+                                            in_deg=False))
+            Tr_forward_upper = np.nan_to_num(
+                self.forward_data.load_data(upper_points,
+                                            channels=['SZR', 'STZ', 'SZZ'],
+                                            in_deg=False))
+            Tr_backward_upper = np.nan_to_num(
+                self.backward_data.load_data(upper_points,
+                                            channels=['SZR', 'STZ', 'SZZ'],
+                                            in_deg=False))
+            # flip adjoints in time
+            P_backward_lower = np.flip(P_backward_lower, axis=2)
+            Gr_backward_upper = np.flip(Gr_backward_upper, axis=2)
+            Tr_backward_upper = np.flip(Tr_backward_upper, axis=2)
+            # Project on master time
+            P_forward_lower_interp = np.empty(P_forward_lower.shape[:-1] +
                                             (len(self.master_time),))
+            P_backward_lower_interp = np.empty(P_backward_lower.shape[:-1] +
+                                                (len(self.master_time),))
+            Gr_forward_upper_interp = np.empty(Gr_forward_upper.shape[:-1] +
+                                            (len(self.master_time),))
+            Gr_backward_upper_interp = np.empty(Gr_backward_upper.shape[:-1] +
+                                                (len(self.master_time),))
+            Tr_forward_upper_interp = np.empty(Tr_forward_upper.shape[:-1] +
+                                            (len(self.master_time),))
+            Tr_backward_upper_interp = np.empty(Tr_backward_upper.shape[:-1] +
+                                                (len(self.master_time),))
+            for i in range(len(points)):
+                for j in range(3):
+                    P_forward_lower_interp[i, j] = np.interp(self.master_time,
+                                                            self.fw_time,
+                                                            Gr_forward_lower[i, j]) # noqa
+                    P_backward_lower_interp[i, j] = np.interp(self.master_time,
+                                                            self.bw_time,
+                                                            Gr_backward_lower[i, j]) # noqa
+                    Gr_forward_upper_interp[i, j] = np.interp(self.master_time,
+                                                            self.fw_time,
+                                                            Gr_forward_upper[i, j]) # noqa
+                    Gr_backward_upper_interp[i, j] = np.interp(self.master_time,
+                                                            self.bw_time,
+                                                            Gr_backward_upper[i, j]) # noqa
+                    Tr_forward_upper_interp[i, j] = np.interp(self.master_time,
+                                                            self.fw_time,
+                                                            Tr_forward_upper[i, j]) # noqa
+                    Tr_backward_upper_interp[i, j] = np.interp(self.master_time,
+                                                            self.bw_time,
+                                                            Tr_backward_upper[i, j]) # noqa
+            # Find properties above and below the discontinuity (assuming radius is
+            # in decreasing order)
+            radius_index = self.forward_data.base_model['DATA']['radius'].index(radius) # noqa
+            rho_lower, rho_upper = np.array(
+                self.forward_data.base_model['DATA']['rho']
+                )[[radius_index, radius_index + 1]]
+            vs_lower, vs_upper = np.array(
+                self.forward_data.base_model['DATA']['vs']
+                )[[radius_index, radius_index + 1]]
+            vp_lower, vp_upper = np.array(
+                self.forward_data.base_model['DATA']['vp']
+                )[[radius_index, radius_index + 1]]
+            factor = (2 - 1.5*(vs_lower/vp_lower)**2) / (3 * rho_lower * vp_lower**2)
+            # Compute the integrand
+            integrand = factor * np.sum(P_forward_lower_interp * P_backward_lower_interp,
+                            axis=1) + \
+                np.sum(Tr_forward_upper_interp * Gr_backward_upper_interp,
+                    axis=1) - \
+                np.sum(Tr_backward_upper_interp * Gr_forward_upper_interp,
+                    axis=1)
 
-        for i in range(len(points)):
-            for j in range(3):
-                Gr_forward_upper_interp[i, j] = np.interp(self.master_time,
-                                                          self.fw_time,
-                                                          Gr_forward_upper[i, j]) # noqa
-                Gr_backward_upper_interp[i, j] = np.interp(self.master_time,
-                                                           self.bw_time,
-                                                           Gr_backward_upper[i, j]) # noqa
-                Tr_forward_upper_interp[i, j] = np.interp(self.master_time,
-                                                          self.fw_time,
-                                                          Tr_forward_upper[i, j]) # noqa
-                Tr_backward_upper_interp[i, j] = np.interp(self.master_time,
-                                                           self.bw_time,
-                                                           Tr_backward_upper[i, j]) # noqa
-                Gr_forward_lower_interp[i, j] = np.interp(self.master_time,
-                                                          self.fw_time,
-                                                          Gr_forward_lower[i, j]) # noqa
-                Gr_backward_lower_interp[i, j] = np.interp(self.master_time,
-                                                           self.bw_time,
-                                                           Gr_backward_lower[i, j]) # noqa
-                Tr_forward_lower_interp[i, j] = np.interp(self.master_time,
-                                                          self.fw_time,
-                                                          Tr_forward_lower[i, j]) # noqa
-                Tr_backward_lower_interp[i, j] = np.interp(self.master_time,
-                                                           self.bw_time,
-                                                           Tr_backward_lower[i, j]) # noqa
+            return -integrate.simpson(
+                integrand, dx=(self.master_time[1] - self.master_time[0])
+                )
 
-        # Compute the integrand
-        integrand = np.sum(Tr_forward_upper_interp * Gr_backward_upper_interp,
-                           axis=1) + \
-            np.sum(Tr_backward_upper_interp * Gr_forward_upper_interp,
-                   axis=1) - \
-            np.sum(Tr_forward_lower_interp * Gr_backward_lower_interp,
-                   axis=1) - \
-            np.sum(Tr_backward_lower_interp * Gr_forward_lower_interp,
-                   axis=1)
-
-        return -integrate.simpson(
-            integrand, dx=(self.master_time[1] - self.master_time[0])
-            )
 
     def evaluate_on_slice(self, parameter: str,
                           source_location: list = None,

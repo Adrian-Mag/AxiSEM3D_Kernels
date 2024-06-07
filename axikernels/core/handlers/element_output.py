@@ -587,7 +587,7 @@ class ElementOutput(AxiSEM3DOutput):
                 r_min, r_max, theta_min, theta_max = domain
                 tolerance = 1e-6  # Tolerance for floating point comparison
                 if (r_min - tolerance <= radius <= r_max + tolerance and
-                    theta_min <= theta <= theta_max and
+                    theta_min - tolerance <= theta <= theta_max + tolerance and
                         not_in_any_domain):
                     # Assign domain index to the point
                     group_mapping[i] = domain_idx
@@ -979,7 +979,10 @@ class ElementOutput(AxiSEM3DOutput):
         # Load the data
         logging.info('Loading data')
         if mesh_type == 'slice':
-            mesh = SliceMesh(source_location, station_location, domains, resolution)
+            mesh = SliceMesh(point1=source_location,
+                             point2=station_location,
+                             domains=domains,
+                             resolution=resolution)
         inplane_field = self.load_data_on_mesh(mesh, channels, time_slices)
 
         # Create animation
