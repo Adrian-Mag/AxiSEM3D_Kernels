@@ -1,8 +1,20 @@
-name: axisem3d_output
+name: axikernels
 channels:
   - conda-forge
   - anaconda
 dependencies:
-  - # This file may be used to create an environment using:
-  - # $ conda create --name <env> --file <this file>
-  - # platform: linux-64
+  - python=3.12
+  - pyyaml
+  - obspy
+  - pandas
+  - netcdf4
+  - cartopy
+  - mpmath
+  - mayavi
+  - xarray
+  - tqdm
+  - plotly
+  - basemap
+  - ruamel
+  - ruamel.yaml
+  - pytables
