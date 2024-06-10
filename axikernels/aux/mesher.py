@@ -289,7 +289,7 @@ class SphereMesh:
         mlab.show()
 
     def plot_on_mesh(self, data: list = None, gamma: float = 1.1,
-                     remove_outliers: bool = True):
+                     remove_outliers: bool = True, cbar_range: list = None):
         if data is None:
             if self.data is None:
                 raise ValueError('No data to plot.')
@@ -310,24 +310,28 @@ class SphereMesh:
         triangles = hull.simplices
 
         # Use the simplices attribute of the result to get the triangles
-        if remove_outliers:
-            z_scores = np.abs(stats.zscore(data))
+        if cbar_range is None:
+            if remove_outliers:
+                z_scores = np.abs(stats.zscore(data))
 
-            # Threshold is set to 3 standard deviations
-            outliers = z_scores > 3
+                # Threshold is set to 3 standard deviations
+                outliers = z_scores > 3
 
-            # Get only the values that are not considered outliers
-            data_no_outliers = data[~outliers]
-            # Calculate the color values based on the interpolated_kernel data
-            max_range = np.abs(data_no_outliers).max() * gamma
+                # Get only the values that are not considered outliers
+                data_no_outliers = data[~outliers]
+                # Calculate the color values based on the interpolated_kernel data
+                max_range = np.abs(data_no_outliers).max() * gamma
+            else:
+                max_range = np.abs(data).max() * gamma
+                vmin, vmax = max_range, -max_range
         else:
-            max_range = np.abs(data).max() * gamma
+            vmin, vmax = cbar_range
 
         # Create a new figure with a white background
         mlab.figure(bgcolor=(1, 1, 1))
         # Create the triangular mesh.
         my_triangular_mesh = mlab.triangular_mesh(x, y, z, triangles, scalars=data,
-                                                  colormap='RdBu', vmin=-max_range, vmax=max_range)
+                                                  colormap='RdBu', vmin=vmin, vmax=vmax)
 
         # my_triangular_mesh.module_manager.scalar_lut_manager.lut.table = colors_reshaped # noqa
 
