@@ -134,8 +134,10 @@ class SliceMesh(Mesh):
     def plot_mesh(self):
         pass
 
-    def plot_on_mesh(self, data: list = None, log_plot: bool = False,
-                     low_range: float = 0, high_range: float = 1):
+    def plot_on_mesh(self, data: list = None,
+                     high_range: float = 1,
+                     filename: str = None,
+                     cbar_range: list = None):
         if data is None:
             if self.data is None:
                 raise ValueError('No data to plot.')
@@ -150,29 +152,23 @@ class SliceMesh(Mesh):
         for [index1, index2], _ in zip(self.indices, self.points):
             slice_matrix[index1, index2] = data[index]
             index += 1
-
-        if log_plot is False:
+        if cbar_range is None:
             _, cbar_max = find_range(slice_matrix,
-                                           percentage_min=0,
-                                           percentage_max=1)
+                                            percentage_min=0,
+                                            percentage_max=1)
             cbar_max *= (high_range * high_range)
             cbar_min = -cbar_max
-            plt.figure()
-            contour = plt.contourf(self.inplane_DIM1, self.inplane_DIM2,
-                                   np.nan_to_num(slice_matrix,),
-                                   levels=np.linspace(cbar_min, cbar_max, 100),
-                                   cmap='RdBu_r', extend='both')
         else:
-            log_10_sensitivity = np.log10(np.abs(slice_matrix,))
-            cbar_min, cbar_max = self.find_range(log_10_sensitivity,
-                                                  percentage_min=low_range,
-                                                  percentage_max=high_range)
-
-            plt.figure()
-            contour = plt.contourf(self.inplane_DIM1, self.inplane_DIM2,
-                                   log_10_sensitivity,
-                                   levels=np.linspace(cbar_min, cbar_max, 100),
-                                   cmap='RdBu_r', extend='both')
+            cbar_min, cbar_max = cbar_range
+        plt.figure()
+        # Add a circle of radius 6371000
+        earth_circle = plt.Circle((0, 0), 6371000, edgecolor='white',
+                                  fill=True, facecolor='black', alpha=0.2)
+        contour = plt.contourf(self.inplane_DIM1, self.inplane_DIM2,
+                            np.nan_to_num(slice_matrix,),
+                            levels=np.linspace(cbar_min, cbar_max, 100),
+                            cmap='RdBu_r', extend='both')
+        plt.gca().add_artist(earth_circle)
 
         plt.scatter(np.dot(self.point1, self.base1),
                     np.dot(self.point1, self.base2))
@@ -186,6 +182,12 @@ class SliceMesh(Mesh):
         cbar.set_ticks(cbar_ticks)
         cbar.set_ticklabels(cbar_ticklabels)
         cbar.set_label('Intensity')
+
+        plt.xticks([])  # Remove x ticks
+        plt.yticks([])  # Remove y ticks
+        plt.gca().axis('off')
+        if filename is not None:
+            plt.savefig(filename + '.png')
         plt.show()
 
     def save_data(self, filename: str, data):
@@ -320,6 +322,9 @@ class SphereMesh:
             max_range = np.abs(data_no_outliers).max() * gamma
         else:
             max_range = np.abs(data).max() * gamma
+
+        # Create a new figure with a white background
+        mlab.figure(bgcolor=(1, 1, 1))
         # Create the triangular mesh.
         my_triangular_mesh = mlab.triangular_mesh(x, y, z, triangles, scalars=data,
                                                   colormap='RdBu', vmin=-max_range, vmax=max_range)

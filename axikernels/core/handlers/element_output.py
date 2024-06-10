@@ -957,9 +957,7 @@ class ElementOutput(AxiSEM3DOutput):
             station_location = np.array([R_max, 0, np.radians(30)])
         else:
             source_location = np.array(source_location, dtype=float)
-            source_location[1:] = np.deg2rad(source_location[1:])
             station_location = np.array(station_location, dtype=float)
-            station_location[1:] = np.deg2rad(station_location[1:])
 
         # Get time slices from frame rate and video_duration assuming that the
         # video will include the entire time axis. We also assume that each
@@ -1032,17 +1030,16 @@ class ElementOutput(AxiSEM3DOutput):
                                                                    mesh.base2))
                 ax.scatter(np.dot(mesh.point2, mesh.base1), np.dot(mesh.point2,
                                                                    mesh.base2))
-                ax.set_title(f'Subplot {channels[channel_slice]}')
+                ax.set_title(f'{channels[channel_slice]}')
 
                 # Create a colorbar for each subplot
                 cbar = plt.colorbar(contour, ax=ax, fraction=0.046, pad=0.04)
                 cbar_ticks = np.linspace(cbar_min[channel_slice],
                                          cbar_max[channel_slice], 5)
-                cbar_ticklabels = ['{:0.1e}'.format(cbar_tick) for
-                                   cbar_tick in cbar_ticks]
-                # cbar.set_ticks(cbar_ticks)
-                # cbar.set_ticklabels(cbar_ticklabels)
-                cbar.set_label('Intensity')
+                ax.set_xticks([])  # Remove x ticks
+                ax.set_yticks([])  # Remove y ticks
+                ax.axis('off')
+                cbar.set_label('Log10(Amplitude)')
             else:
                 ax.axis('off')
 
@@ -1065,8 +1062,10 @@ class ElementOutput(AxiSEM3DOutput):
                                np.dot(mesh.point1, mesh.base2))
                     ax.scatter(np.dot(mesh.point2, mesh.base1),
                                np.dot(mesh.point2, mesh.base2))
-                    ax.set_title(f'Subplot {channels[channel_slice]}')
-
+                    ax.set_title(f'{channels[channel_slice]}')
+                    ax.set_xticks([])  # Remove x ticks
+                    ax.set_yticks([])  # Remove y ticks
+                    ax.axis('off')
                     # Add a circle with radius R to the plot
                     for r in discontinuities_to_plot:
                         circle = plt.Circle((0, 0), r,

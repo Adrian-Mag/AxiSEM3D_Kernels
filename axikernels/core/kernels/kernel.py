@@ -88,7 +88,7 @@ class Kernel():
         # make dot product
         fw_bw = np.sum(interp_dfwdt * interp_dbwdt, axis=1)
 
-        sensitivity = integrate.simpson(fw_bw, dx=(self.master_time[1] -
+        sensitivity = - integrate.simpson(fw_bw, dx=(self.master_time[1] -
                                                    self.master_time[0]))
         return sensitivity
 
@@ -130,7 +130,7 @@ class Kernel():
                                                     self.bw_time,
                                                     trace_G_adjoint[i])
             dt = self.master_time[1] - self.master_time[0]
-            solid_sensitivities = - integrate.simpson(interp_trace_G * interp_trace_G_adjoint,
+            solid_sensitivities = integrate.simpson(interp_trace_G * interp_trace_G_adjoint,
                                     dx=dt) # noqa
             sensitivity[material_mapping==0] = solid_sensitivities
 
@@ -222,7 +222,7 @@ class Kernel():
                                 interp_G_forward.transpose(0, 2, 1, 3)),
                             axis=(1, 2))
             dt = self.master_time[1] - self.master_time[0]
-            solid_sensitivities = - integrate.simpson(integrand, dx=dt)
+            solid_sensitivities = integrate.simpson(integrand, dx=dt)
             sensitivity[material_mapping==0] = solid_sensitivities
 
         if len(liquid_points) > 0:

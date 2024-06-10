@@ -256,8 +256,8 @@ class XObjectiveFunction(ObjectiveFunction):
         dfwdt[0:2] = np.dot(self._compute_RT_totation_matrix(receiver_point), dfwdt[0:2])
         # Now pick the observation channel
         # Compute normalization factor
-        mag = np.sqrt(integrate.simpson(np.sum(dfwdt * dfwdt, axis=0),
-                                        dx=dt_forward))
+        mag = integrate.simpson(np.sum(dfwdt * dfwdt, axis=0),
+                                        dx=dt_forward)
         # Build the STF
         STF = {}
         # Get the coordinate system
