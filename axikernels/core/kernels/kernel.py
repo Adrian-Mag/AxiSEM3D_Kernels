@@ -263,22 +263,9 @@ class Kernel():
 
     def evaluate_rho(self, points: np.ndarray) -> np.ndarray:
         # K_rho = K_rho_0 + (vp^2-2vs^2)K_lambda_0 + vs^2 K_mu_0
-        radii = np.array(self.forward_data.base_model['DATA']['radius'])
-        is_increasing = radii[0] < radii[1]
-        if is_increasing:
-            index = np.searchsorted(radii, points[:, 0])
-        else:
-            index = np.searchsorted(-radii, -points[:, 0])
-        # eliminate points outside of the domain
-        mask = np.logical_or(index > 0, index < len(radii))
-        filtered_index = index[mask]
 
-        vp = np.array(
-            self.forward_data.base_model['DATA']['vp']
-            )[filtered_index - 1]
-        vs = np.array(
-            self.forward_data.base_model['DATA']['vs']
-            )[filtered_index - 1]
+        vp = self.forward_data._load_material_property(points, 'vp')
+        vs = self.forward_data._load_material_property(points, 'vs')
 
         result = self.evaluate_rho_0(points) + \
             (vp * vp - 2 * vs * vs) * self.evaluate_lambda(points) + \
@@ -287,39 +274,15 @@ class Kernel():
 
     def evaluate_vp(self, points):
         # K_vs = 2*rho*vp*K_lambda_0
-        radii = np.array(self.forward_data.base_model['DATA']['radius'])
-        is_increasing = radii[0] < radii[1]
-        if is_increasing:
-            index = np.searchsorted(radii, points[:, 0])
-        else:
-            index = np.searchsorted(-radii, -points[:, 0])
-        # eliminated points outside of the domain
-        mask = np.logical_or(index > 0, index < len(radii))
-        filtered_index = index[mask]
-
-        rho = self._find_material_property(points, 'rho')
-        vp = self._find_material_property(points, 'vp')
+        vp = self.forward_data._load_material_property(points, 'vp')
+        rho = self.forward_data._load_material_property(points, 'rho')
 
         return 2 * rho * vp * self.evaluate_lambda(points)
 
     def evaluate_vs(self, points):
         # K_vs = 2*rho*vs*(K_mu_0 - 2*K_lambda_0)
-        radii = np.array(self.forward_data.base_model['DATA']['radius'])
-        is_increasing = radii[0] < radii[1]
-        if is_increasing:
-            index = np.searchsorted(radii, points[:, 0])
-        else:
-            index = np.searchsorted(-radii, -points[:, 0])
-        # eliminated points outside of the domain
-        mask = np.logical_or(index > 0, index < len(radii))
-        filtered_index = index[mask]
-
-        rho = np.array(
-            self.forward_data.base_model['DATA']['rho']
-            )[filtered_index - 1]
-        vs = np.array(
-            self.forward_data.base_model['DATA']['vs']
-            )[filtered_index - 1]
+        vs = self.forward_data._load_material_property(points, 'vs')
+        rho = self.forward_data._load_material_property(points, 'rho')
 
         result = 2 * rho * vs * (self.evaluate_mu(points) - 2 *
                                  self.evaluate_lambda(points))
@@ -854,16 +817,12 @@ class Kernel():
 
         # Find properties above and below the discontinuity (assuming radius is
         # in decreasing order)
-        radius_index = self.forward_data.base_model['DATA']['radius'].index(radius) # noqa
-        rho_upper, rho_lower = np.array(
-            self.forward_data.base_model['DATA']['rho']
-            )[[radius_index, radius_index + 1]]
-        vs_upper, vs_lower = np.array(
-            self.forward_data.base_model['DATA']['vs']
-            )[[radius_index, radius_index + 1]]
-        vp_upper, vp_lower = np.array(
-            self.forward_data.base_model['DATA']['vp']
-            )[[radius_index, radius_index + 1]]
+        rho_lower = self.forward_data._load_material_property(lower_points, 'rho')
+        rho_upper = self.forward_data._load_material_property(upper_points, 'rho')
+        vp_lower = self.forward_data._load_material_property(lower_points, 'vp')
+        vp_upper = self.forward_data._load_material_property(upper_points, 'vp')
+        vs_lower = self.forward_data._load_material_property(lower_points, 'vs')
+        vs_upper = self.forward_data._load_material_property(upper_points, 'vs')
 
         # Compute the volumetric-geometric kernel (upper/lower)
         if disc_type == 'SS':
@@ -1071,16 +1030,12 @@ class Kernel():
                                                             Tr_backward_lower[i, j]) # noqa
             # Find properties above and below the discontinuity (assuming radius is
             # in decreasing order)
-            radius_index = self.forward_data.base_model['DATA']['radius'].index(radius) # noqa
-            rho_upper, rho_lower = np.array(
-                self.forward_data.base_model['DATA']['rho']
-                )[[radius_index, radius_index + 1]]
-            vs_upper, vs_lower = np.array(
-                self.forward_data.base_model['DATA']['vs']
-                )[[radius_index, radius_index + 1]]
-            vp_upper, vp_lower = np.array(
-                self.forward_data.base_model['DATA']['vp']
-                )[[radius_index, radius_index + 1]]
+            rho_lower = self.forward_data._load_material_property(lower_points, 'rho')
+            rho_upper = self.forward_data._load_material_property(upper_points, 'rho')
+            vp_lower = self.forward_data._load_material_property(lower_points, 'vp')
+            vp_upper = self.forward_data._load_material_property(upper_points, 'vp')
+            vs_lower = self.forward_data._load_material_property(lower_points, 'vs')
+            vs_upper = self.forward_data._load_material_property(upper_points, 'vs')
             factor = (2 - 1.5*(vs_upper/vp_upper)**2) / (3 * rho_upper * vp_upper**2)
             # Compute the integrand
             integrand = factor * np.sum(P_forward_upper_interp * P_backward_upper_interp,
@@ -1157,16 +1112,12 @@ class Kernel():
                                                             Tr_backward_upper[i, j]) # noqa
             # Find properties above and below the discontinuity (assuming radius is
             # in decreasing order)
-            radius_index = self.forward_data.base_model['DATA']['radius'].index(radius) # noqa
-            rho_lower, rho_upper = np.array(
-                self.forward_data.base_model['DATA']['rho']
-                )[[radius_index, radius_index + 1]]
-            vs_lower, vs_upper = np.array(
-                self.forward_data.base_model['DATA']['vs']
-                )[[radius_index, radius_index + 1]]
-            vp_lower, vp_upper = np.array(
-                self.forward_data.base_model['DATA']['vp']
-                )[[radius_index, radius_index + 1]]
+            rho_lower = self.forward_data._load_material_property(lower_points, 'rho')
+            rho_upper = self.forward_data._load_material_property(upper_points, 'rho')
+            vp_lower = self.forward_data._load_material_property(lower_points, 'vp')
+            vp_upper = self.forward_data._load_material_property(upper_points, 'vp')
+            vs_lower = self.forward_data._load_material_property(lower_points, 'vs')
+            vs_upper = self.forward_data._load_material_property(upper_points, 'vs')
             factor = (2 - 1.5*(vs_lower/vp_lower)**2) / (3 * rho_lower * vp_lower**2)
             # Compute the integrand
             integrand = factor * np.sum(P_forward_lower_interp * P_backward_lower_interp,

@@ -19,6 +19,8 @@ import plotly.graph_objects as go
 import logging
 import sys
 import matplotlib
+from scipy.interpolate import interp1d
+import netCDF4 as nc
 
 logging.basicConfig(level=logging.CRITICAL,
                     format='%(asctime)s - %(levelname)s - %(message)s')
@@ -1296,3 +1298,48 @@ class ElementOutput(AxiSEM3DOutput):
             return True
         else:
             return False
+
+    def _load_material_property(self, points: np.ndarray,
+                                material_property: str):
+        # Load bm properties
+        # assume axisem type bm for now
+        points = np.array(points)
+        radii = np.array(self.base_model['DATA']['radius'])
+        values = np.array(self.base_model['DATA'][material_property])
+        interpolation_function = interp1d(radii, values, kind='linear')
+        base_model = interpolation_function(points[:, 0])
+
+        if material_property == 'vs' or material_property == 'vp':
+            # Load 3d values
+            v3d_model_filepath = os.path.join(self.path_to_simulation, 'input/S362ANI_percent.nc')
+            model_3d = nc.Dataset(v3d_model_filepath, 'r')
+            # Get the depth, latitude, and longitude arrays
+            depth = model_3d.variables['depth'][:]
+            radii = (6371 - depth) * 1e3
+            latitude = model_3d.variables['latitude'][:]
+            longitude = model_3d.variables['longitude'][:]
+
+            # Get the data
+            data = model_3d.variables['dvs'][:]
+            perturbation = []
+            for point in points:
+                perturbation.append(self._extrapolate_3d(point, radii, latitude, longitude, data))
+            perturbation = np.array(perturbation)
+            if material_property == 'vs':
+                factor = 0.1
+            else:
+                factor = 0.1
+            values = (1 + perturbation * factor) * base_model
+        else:
+            values = base_model
+
+        return values
+
+    def _extrapolate_3d(self, point, ax1, ax2, ax3, data):
+        # Create interp1d objects for each dimension
+        depth_interpolator = interp1d(ax1, data, axis=0, fill_value="extrapolate")
+        latitude_interpolator = interp1d(ax2, depth_interpolator(point[0]), axis=0, fill_value="extrapolate")
+        longitude_interpolator = interp1d(ax3, latitude_interpolator(point[1]), axis=0, fill_value="extrapolate")
+
+        # Return the interpolated and extrapolated value
+        return longitude_interpolator(point[2])
