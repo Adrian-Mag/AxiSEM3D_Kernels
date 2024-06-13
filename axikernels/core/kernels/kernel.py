@@ -858,7 +858,7 @@ class Kernel():
                 3 * rho_lower * vs_lower**2 * \
                 self.evaluate_mu(points=lower_points)
 
-        return K_dv_upper - K_dv_lower
+        return K_dv_lower - K_dv_upper
 
     def evaluate_K_dn(self, points: np.ndarray, radius: float) -> np.ndarray:
         # Get limit points

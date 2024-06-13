@@ -1309,15 +1309,16 @@ class ElementOutput(AxiSEM3DOutput):
         interpolation_function = interp1d(radii, values, kind='linear')
         base_model = interpolation_function(points[:, 0])
 
-        if material_property == 'vs' or material_property == 'vp':
+        v3d_model_filepath = os.path.join(self.path_to_simulation, 'input/S362ANI_percent.nc')
+        if (os.path.isfile(v3d_model_filepath) and
+            (material_property == 'vs' or material_property == 'vp')):
             # Load 3d values
-            v3d_model_filepath = os.path.join(self.path_to_simulation, 'input/S362ANI_percent.nc')
             model_3d = nc.Dataset(v3d_model_filepath, 'r')
             # Get the depth, latitude, and longitude arrays
             depth = model_3d.variables['depth'][:]
             radii = (6371 - depth) * 1e3
-            latitude = model_3d.variables['latitude'][:]
-            longitude = model_3d.variables['longitude'][:]
+            latitude = np.deg2rad(model_3d.variables['latitude'][:])
+            longitude = np.deg2rad(model_3d.variables['longitude'][:])
 
             # Get the data
             data = model_3d.variables['dvs'][:]
@@ -1326,9 +1327,9 @@ class ElementOutput(AxiSEM3DOutput):
                 perturbation.append(self._extrapolate_3d(point, radii, latitude, longitude, data))
             perturbation = np.array(perturbation)
             if material_property == 'vs':
-                factor = 0.1
+                factor = 0
             else:
-                factor = 0.1
+                factor = 0
             values = (1 + perturbation * factor) * base_model
         else:
             values = base_model

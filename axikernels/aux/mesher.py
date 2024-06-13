@@ -8,6 +8,8 @@ from mayavi import mlab
 from scipy.spatial import ConvexHull
 from matplotlib import cm
 from scipy import stats
+from tvtk.util import ctf
+import matplotlib
 
 class Mesh(ABC):
 
@@ -224,6 +226,10 @@ class SliceMesh(Mesh):
 
         return df, metadata
 
+def matplotlib_to_mayavi(cmap):
+    lut = cmap(np.linspace(0, 1, 256)) * 255  # Scale to 255 for RGB
+    return lut
+
 class SphereMesh:
     def __init__(self, data_frame_path: str=None,
                   radius: float=1, n: int=1000,
@@ -327,15 +333,10 @@ class SphereMesh:
         else:
             vmin, vmax = cbar_range
 
-        # Create a new figure with a white background
+        cmap = matplotlib.cm.get_cmap('RdBu_r')
         mlab.figure(bgcolor=(1, 1, 1))
-        # Create the triangular mesh.
-        my_triangular_mesh = mlab.triangular_mesh(x, y, z, triangles, scalars=data,
-                                                  colormap='RdBu', vmin=vmin, vmax=vmax)
-
-        # my_triangular_mesh.module_manager.scalar_lut_manager.lut.table = colors_reshaped # noqa
-
-        # Display the plot.
+        my_triangular_mesh = mlab.triangular_mesh(x, y, z, triangles, scalars=data, vmin=vmin, vmax=vmax)
+        my_triangular_mesh.module_manager.scalar_lut_manager.lut.table = matplotlib_to_mayavi(cmap)
         mlab.show()
 
     def save_data(self, filename: str, data):
