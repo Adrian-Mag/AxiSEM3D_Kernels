@@ -1327,9 +1327,9 @@ class ElementOutput(AxiSEM3DOutput):
                 perturbation.append(self._extrapolate_3d(point, radii, latitude, longitude, data))
             perturbation = np.array(perturbation)
             if material_property == 'vs':
-                factor = 0
+                factor = 0.1
             else:
-                factor = 0
+                factor = 0.1
             values = (1 + perturbation * factor) * base_model
         else:
             values = base_model

@@ -1,4 +1,4 @@
-name: axikernels
+name: axikernels_env
 channels:
   - conda-forge
   - anaconda
