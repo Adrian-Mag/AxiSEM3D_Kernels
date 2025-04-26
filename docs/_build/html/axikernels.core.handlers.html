@@ -1,0 +1,364 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>axikernels.core.handlers package &mdash; Axikernels 0.1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=2709fde1"></script>
+      <script src="_static/doctools.js?v=9bcbadda"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="axikernels.core.kernels package" href="axikernels.core.kernels.html" />
+    <link rel="prev" title="axikernels.core package" href="axikernels.core.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            Axikernels
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="modules.html">axikernels</a><ul class="current">
+<li class="toctree-l2 current"><a class="reference internal" href="axikernels.html">axikernels package</a><ul class="current">
+<li class="toctree-l3 current"><a class="reference internal" href="axikernels.html#subpackages">Subpackages</a><ul class="current">
+<li class="toctree-l4"><a class="reference internal" href="axikernels.aux.html">axikernels.aux package</a></li>
+<li class="toctree-l4 current"><a class="reference internal" href="axikernels.core.html">axikernels.core package</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="axikernels.html#module-axikernels">Module contents</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">Axikernels</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="modules.html">axikernels</a></li>
+          <li class="breadcrumb-item"><a href="axikernels.html">axikernels package</a></li>
+          <li class="breadcrumb-item"><a href="axikernels.core.html">axikernels.core package</a></li>
+      <li class="breadcrumb-item active">axikernels.core.handlers package</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/axikernels.core.handlers.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="axikernels-core-handlers-package">
+<h1>axikernels.core.handlers package<a class="headerlink" href="#axikernels-core-handlers-package" title="Link to this heading"></a></h1>
+<section id="submodules">
+<h2>Submodules<a class="headerlink" href="#submodules" title="Link to this heading"></a></h2>
+</section>
+<section id="module-axikernels.core.handlers.axisem3d_output">
+<span id="axikernels-core-handlers-axisem3d-output-module"></span><h2>axikernels.core.handlers.axisem3d_output module<a class="headerlink" href="#module-axikernels.core.handlers.axisem3d_output" title="Link to this heading"></a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="axikernels.core.handlers.axisem3d_output.AxiSEM3DOutput">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">axikernels.core.handlers.axisem3d_output.</span></span><span class="sig-name descname"><span class="pre">AxiSEM3DOutput</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path_to_simulation</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">path_to_base_model</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/axikernels/core/handlers/axisem3d_output.html#AxiSEM3DOutput"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#axikernels.core.handlers.axisem3d_output.AxiSEM3DOutput" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>A class representing AxiSEM3D simulation output.</p>
+<dl class="simple">
+<dt>Attributes:</dt><dd><p>path_to_simulation (str): Path to the AxiSEM3D simulation directory.
+inparam_model (str): Path to the inparam.model.yaml file.
+inparam_nr (str): Path to the inparam.nr.yaml file.
+inparam_output (str): Path to the inparam.output.yaml file.
+inparam_source (str): Path to the inparam.source.yaml file.
+inparam_advanced (str): Path to the inparam.advanced.yaml file.
+outputs (dict): Dictionary containing information about the simulation
+outputs.
+simulation_name (str): Name of the simulation.
+Domain_Radius (int): Radius of the Earth in meters.
+base_model (dict): Dictionary containing the base model data.</p>
+</dd>
+<dt>Methods:</dt><dd><p>_find_catalogue(): Find the catalogue file.
+_find_outputs(): Find the output directories.
+_search_files(directory, keyword, include_subdirectories=False): Search
+for files containing a specific keyword.
+catalogue(): Get the simulation catalogue.</p>
+</dd>
+</dl>
+<dl class="py property">
+<dt class="sig sig-object py" id="axikernels.core.handlers.axisem3d_output.AxiSEM3DOutput.catalogue">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">catalogue</span></span><a class="headerlink" href="#axikernels.core.handlers.axisem3d_output.AxiSEM3DOutput.catalogue" title="Link to this definition"></a></dt>
+<dd><p>Get the simulation catalogue.</p>
+<dl class="simple">
+<dt>Returns:</dt><dd><p>obspy.core.event.Catalog: Catalog object representing the
+simulation catalogue.</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="module-axikernels.core.handlers.element_output">
+<span id="axikernels-core-handlers-element-output-module"></span><h2>axikernels.core.handlers.element_output module<a class="headerlink" href="#module-axikernels.core.handlers.element_output" title="Link to this heading"></a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="axikernels.core.handlers.element_output.ElementOutput">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">axikernels.core.handlers.element_output.</span></span><span class="sig-name descname"><span class="pre">ElementOutput</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path_to_element_output</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/axikernels/core/handlers/element_output.html#ElementOutput"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#axikernels.core.handlers.element_output.ElementOutput" title="Link to this definition"></a></dt>
+<dd><p>Bases: <a class="reference internal" href="#axikernels.core.handlers.axisem3d_output.AxiSEM3DOutput" title="axikernels.core.handlers.axisem3d_output.AxiSEM3DOutput"><code class="xref py py-class docutils literal notranslate"><span class="pre">AxiSEM3DOutput</span></code></a></p>
+<dl class="py method">
+<dt class="sig sig-object py" id="axikernels.core.handlers.element_output.ElementOutput.animation">
+<span class="sig-name descname"><span class="pre">animation</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">source_location</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">station_location</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">channels</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">['UZ']</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'video'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">video_duration</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">frame_rate</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">resolution</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">300</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">domains</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lower_range</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.6</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">upper_range</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.9999</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">paralel_processing</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mesh_type</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'slice'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/axikernels/core/handlers/element_output.html#ElementOutput.animation"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#axikernels.core.handlers.element_output.ElementOutput.animation" title="Link to this definition"></a></dt>
+<dd><p>Generate an animation representing seismic data on a slice frame.</p>
+<dl class="simple">
+<dt>Args:</dt><dd><p>source_location (list): The coordinates [rad, lat, lon] of the seismic source in the Earth frame in radians.
+station_location (list): The coordinates [rad, lat, lon] of the station location in the Earth frame in radians.
+name (str, optional): The name of the output video file. Defaults to ‘video’.
+video_duration (int, optional): The duration of the video in seconds. Defaults to 20.
+frame_rate (int, optional): The number of frames per second in the video. Defaults to 10.
+resolution (int, optional): The resolution of the slice mesh. Defaults to 100.
+R_min (float, optional): The minimum radius for data inclusion. Defaults to 0.
+R_max (float, optional): The maximum radius for data inclusion. Defaults to 6371000.
+lower_range (float, optional): The lower percentile range for the colorbar intensity. Defaults to 0.5.</p>
+</dd>
+<dt>Returns:</dt><dd><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="axikernels.core.handlers.element_output.ElementOutput.create_inventory">
+<span class="sig-name descname"><span class="pre">create_inventory</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path_to_station_file</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/axikernels/core/handlers/element_output.html#ElementOutput.create_inventory"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#axikernels.core.handlers.element_output.ElementOutput.create_inventory" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="axikernels.core.handlers.element_output.ElementOutput.load_data">
+<span class="sig-name descname"><span class="pre">load_data</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">points</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">channels</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time_slices</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">frame</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'geographic'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">coords</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'spherical'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">in_deg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">batch_size</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1000</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/axikernels/core/handlers/element_output.html#ElementOutput.load_data"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#axikernels.core.handlers.element_output.ElementOutput.load_data" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="axikernels.core.handlers.element_output.ElementOutput.load_data_from_element_group">
+<span class="sig-name descname"><span class="pre">load_data_from_element_group</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">points</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">group</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">channel_slices</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time_slices</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pbar</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/axikernels/core/handlers/element_output.html#ElementOutput.load_data_from_element_group"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#axikernels.core.handlers.element_output.ElementOutput.load_data_from_element_group" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="axikernels.core.handlers.element_output.ElementOutput.load_data_on_mesh">
+<span class="sig-name descname"><span class="pre">load_data_on_mesh</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">mesh</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="axikernels.aux.html#axikernels.aux.mesher.Mesh" title="axikernels.aux.mesher.Mesh"><span class="pre">Mesh</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">channels</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time_slices</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/axikernels/core/handlers/element_output.html#ElementOutput.load_data_on_mesh"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#axikernels.core.handlers.element_output.ElementOutput.load_data_on_mesh" title="Link to this definition"></a></dt>
+<dd><p>Load data on a mesh.</p>
+<dl class="simple">
+<dt>Args:</dt><dd><p>mesh (Mesh): The mesh object to load data onto.
+channels (list): List of channels to load data for.
+time_slices (list): List of time slices to load data for.</p>
+</dd>
+<dt>Returns:</dt><dd><p>np.ndarray: Data loaded onto the mesh.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="axikernels.core.handlers.element_output.ElementOutput.obspyfy">
+<span class="sig-name descname"><span class="pre">obspyfy</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path_to_station_file</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">channels</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/axikernels/core/handlers/element_output.html#ElementOutput.obspyfy"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#axikernels.core.handlers.element_output.ElementOutput.obspyfy" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="axikernels.core.handlers.element_output.ElementOutput.plot_mesh">
+<span class="sig-name descname"><span class="pre">plot_mesh</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">special_elements</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/axikernels/core/handlers/element_output.html#ElementOutput.plot_mesh"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#axikernels.core.handlers.element_output.ElementOutput.plot_mesh" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="axikernels.core.handlers.element_output.ElementOutput.stream">
+<span class="sig-name descname"><span class="pre">stream</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">points</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">channels</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">coord_in_deg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time_limits</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Stream</span></span></span><a class="reference internal" href="_modules/axikernels/core/handlers/element_output.html#ElementOutput.stream"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#axikernels.core.handlers.element_output.ElementOutput.stream" title="Link to this definition"></a></dt>
+<dd><p>Generate a stream with the wavefields computed at all stations given the location.</p>
+<dl class="simple">
+<dt>Args:</dt><dd><dl class="simple">
+<dt>points (list): The location of the station in meters and radians/degrees.</dt><dd><p>It should be a list with the following elements:
+- radial position in meters (float)
+- latitude in radians/degrees (float)
+- longitude in radians/degrees (float)</p>
+</dd>
+<dt>coord_in_deg (bool, optional): Specify whether the coordinates are in degrees.</dt><dd><p>Defaults to True.</p>
+</dd>
+<dt>channels (list, optional): List of wavefield channels to include.</dt><dd><p>Defaults to None, which includes all channels.</p>
+</dd>
+<dt>time_limits (list, optional): Time limits for the data.</dt><dd><p>It should be a list with two elements:
+- start time in seconds (float)
+- end time in seconds (float)
+Defaults to None, which includes all times.</p>
+</dd>
+</dl>
+</dd>
+<dt>Returns:</dt><dd><p>obspy.Stream: A stream containing the wavefields computed at all stations.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="axikernels.core.handlers.element_output.ElementOutput.stream_STA">
+<span class="sig-name descname"><span class="pre">stream_STA</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path_to_station_file</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">channels</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time_limits</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Stream</span></span></span><a class="reference internal" href="_modules/axikernels/core/handlers/element_output.html#ElementOutput.stream_STA"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#axikernels.core.handlers.element_output.ElementOutput.stream_STA" title="Link to this definition"></a></dt>
+<dd><p>Takes in the path to a station file used for axisem3d
+and returns a stream with the wavefields computed at all stations</p>
+<dl class="simple">
+<dt>Args:</dt><dd><p>path_to_station_file (str): path to station.txt file</p>
+</dd>
+<dt>Returns:</dt><dd><p>obspy.stream: stream</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="module-axikernels.core.handlers.obspy_output">
+<span id="axikernels-core-handlers-obspy-output-module"></span><h2>axikernels.core.handlers.obspy_output module<a class="headerlink" href="#module-axikernels.core.handlers.obspy_output" title="Link to this heading"></a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="axikernels.core.handlers.obspy_output.ObspyfiedOutput">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">axikernels.core.handlers.obspy_output.</span></span><span class="sig-name descname"><span class="pre">ObspyfiedOutput</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">obspyfied_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mseed_file_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">inv_file_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cat_file_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/axikernels/core/handlers/obspy_output.html#ObspyfiedOutput"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#axikernels.core.handlers.obspy_output.ObspyfiedOutput" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<dl class="py method">
+<dt class="sig sig-object py" id="axikernels.core.handlers.obspy_output.ObspyfiedOutput.search_files">
+<span class="sig-name descname"><span class="pre">search_files</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">directory</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">keyword</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">include_subdirectories</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/axikernels/core/handlers/obspy_output.html#ObspyfiedOutput.search_files"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#axikernels.core.handlers.obspy_output.ObspyfiedOutput.search_files" title="Link to this definition"></a></dt>
+<dd><p>Search for files in the output directory.</p>
+<dl class="simple">
+<dt>Returns:</dt><dd><p>list: A list of file paths.</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="module-axikernels.core.handlers.station_output">
+<span id="axikernels-core-handlers-station-output-module"></span><h2>axikernels.core.handlers.station_output module<a class="headerlink" href="#module-axikernels.core.handlers.station_output" title="Link to this heading"></a></h2>
+<p>Class for handling axisem station output in netcdf format.</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="axikernels.core.handlers.station_output.StationOutput">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">axikernels.core.handlers.station_output.</span></span><span class="sig-name descname"><span class="pre">StationOutput</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path_to_station_output</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/axikernels/core/handlers/station_output.html#StationOutput"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#axikernels.core.handlers.station_output.StationOutput" title="Link to this definition"></a></dt>
+<dd><p>Bases: <a class="reference internal" href="#axikernels.core.handlers.axisem3d_output.AxiSEM3DOutput" title="axikernels.core.handlers.axisem3d_output.AxiSEM3DOutput"><code class="xref py py-class docutils literal notranslate"><span class="pre">AxiSEM3DOutput</span></code></a></p>
+<dl class="py property">
+<dt class="sig sig-object py" id="axikernels.core.handlers.station_output.StationOutput.inventory">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">inventory</span></span><a class="headerlink" href="#axikernels.core.handlers.station_output.StationOutput.inventory" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="axikernels.core.handlers.station_output.StationOutput.load_data_at_station">
+<span class="sig-name descname"><span class="pre">load_data_at_station</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">network</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">station_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">channels</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time_limits</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/axikernels/core/handlers/station_output.html#StationOutput.load_data_at_station"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#axikernels.core.handlers.station_output.StationOutput.load_data_at_station" title="Link to this definition"></a></dt>
+<dd><p>Load wave data at a specific station.</p>
+<dl class="simple">
+<dt>Args:</dt><dd><p>network (str): Network name
+station_name (str): Station name
+channels (list, optional): List of channel names. Defaults to None.
+time_limits (list, optional): List of time limits [t_min, t_max].
+Defaults to None.</p>
+</dd>
+<dt>Returns:</dt><dd><p>np.ndarray: Wave data at the station</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="axikernels.core.handlers.station_output.StationOutput.obspyfy">
+<span class="sig-name descname"><span class="pre">obspyfy</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/axikernels/core/handlers/station_output.html#StationOutput.obspyfy"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#axikernels.core.handlers.station_output.StationOutput.obspyfy" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="axikernels.core.handlers.station_output.StationOutput.parse_to_mseed">
+<span class="sig-name descname"><span class="pre">parse_to_mseed</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">channels</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time_limits</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/axikernels/core/handlers/station_output.html#StationOutput.parse_to_mseed"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#axikernels.core.handlers.station_output.StationOutput.parse_to_mseed" title="Link to this definition"></a></dt>
+<dd><p>Parse the data to MiniSEED format.</p>
+<dl class="simple">
+<dt>Args:</dt><dd><p>channels (list, optional): List of channel names. Defaults to None.
+time_limits (list, optional): List of time limits [t_min, t_max].
+Defaults to None.</p>
+</dd>
+<dt>Returns:</dt><dd><p>obspy.Stream: ObsPy Stream object containing the data</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="axikernels.core.handlers.station_output.StationOutput.stream">
+<span class="sig-name descname"><span class="pre">stream</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">networks</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">station_names</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">locations</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">channels</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time_limits</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Stream</span></span></span><a class="reference internal" href="_modules/axikernels/core/handlers/station_output.html#StationOutput.stream"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#axikernels.core.handlers.station_output.StationOutput.stream" title="Link to this definition"></a></dt>
+<dd><p>Returns stream with data from the chosen stations and channels</p>
+<dl class="simple">
+<dt>Args:</dt><dd><p>networks (list): List of strings with networks
+station_names (list): List of strings with stations
+locations (list): List of strings with locations
+channels (str): String of channels
+data_type (str, optional): Type of data output (eg RTZ). Defaults
+to ‘RTZ’.</p>
+</dd>
+<dt>Returns:</dt><dd><p>obspy.Stream: Obspy Stream of data</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="module-axikernels.core.handlers">
+<span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-axikernels.core.handlers" title="Link to this heading"></a></h2>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="axikernels.core.html" class="btn btn-neutral float-left" title="axikernels.core package" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="axikernels.core.kernels.html" class="btn btn-neutral float-right" title="axikernels.core.kernels package" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Adrian Marin Mag.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

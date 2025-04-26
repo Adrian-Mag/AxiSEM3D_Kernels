@@ -1,0 +1,217 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>axikernels.aux.helper_functions &mdash; Axikernels 0.1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../_static/documentation_options.js?v=2709fde1"></script>
+      <script src="../../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            Axikernels
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../modules.html">axikernels</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">Axikernels</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">axikernels.aux.helper_functions</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for axikernels.aux.helper_functions</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span><span class="w"> </span><span class="nn">obspy.taup</span><span class="w"> </span><span class="kn">import</span> <span class="n">TauPyModel</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+
+<div class="viewcode-block" id="find_range">
+<a class="viewcode-back" href="../../../axikernels.aux.html#axikernels.aux.helper_functions.find_range">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">find_range</span><span class="p">(</span><span class="n">arr</span><span class="p">,</span> <span class="n">percentage_min</span><span class="p">,</span> <span class="n">percentage_max</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Find the smallest value in the array based on the given percentage.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        arr (ndarray): The input array.</span>
+<span class="sd">        percentage (float): The percentage of values to consider.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        smallest_value (float or None): The smallest value based on the</span>
+<span class="sd">        given percentage, or None if the array is empty or</span>
+<span class="sd">        contains no finite values.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Flatten the array to a 1D array</span>
+    <span class="n">flattened</span> <span class="o">=</span> <span class="n">arr</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">isfinite</span><span class="p">(</span><span class="n">arr</span><span class="p">)]</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
+
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">flattened</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="c1"># Sort the flattened array in ascending order</span>
+    <span class="n">sorted_arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">flattened</span><span class="p">)</span>
+
+    <span class="c1"># Compute the index that corresponds to percentage of the values</span>
+    <span class="n">percentile_index_min</span> <span class="o">=</span> <span class="nb">int</span><span class="p">((</span><span class="nb">len</span><span class="p">(</span><span class="n">sorted_arr</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="n">percentage_min</span><span class="p">)</span>
+    <span class="n">percentile_index_max</span> <span class="o">=</span> <span class="nb">int</span><span class="p">((</span><span class="nb">len</span><span class="p">(</span><span class="n">sorted_arr</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="n">percentage_max</span><span class="p">)</span>
+
+    <span class="c1"># Get the value at the computed index</span>
+    <span class="n">smallest_value</span> <span class="o">=</span> <span class="n">sorted_arr</span><span class="p">[</span><span class="n">percentile_index_min</span><span class="p">]</span>
+    <span class="n">biggest_value</span> <span class="o">=</span> <span class="n">sorted_arr</span><span class="p">[</span><span class="n">percentile_index_max</span><span class="p">]</span>
+
+    <span class="k">return</span> <span class="p">[</span><span class="n">smallest_value</span><span class="p">,</span> <span class="n">biggest_value</span><span class="p">]</span></div>
+
+
+<div class="viewcode-block" id="find_phase_window">
+<a class="viewcode-back" href="../../../axikernels.aux.html#axikernels.aux.helper_functions.find_phase_window">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">find_phase_window</span><span class="p">(</span><span class="n">event_depth</span><span class="p">,</span> <span class="n">event_latitude</span><span class="p">,</span> <span class="n">event_longitude</span><span class="p">,</span>
+                      <span class="n">station_latitude</span><span class="p">,</span> <span class="n">station_longitude</span><span class="p">,</span> <span class="n">T</span><span class="p">,</span> <span class="n">phase</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Find the time window for a specific seismic phase arrival.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        event_depth (float): Event depth in kilometers.</span>
+<span class="sd">        event_latitude (float): Event latitude in degrees.</span>
+<span class="sd">        event_longitude (float): Event longitude in degrees.</span>
+<span class="sd">        station_latitude (float): Station latitude in degrees.</span>
+<span class="sd">        station_longitude (float): Station longitude in degrees.</span>
+<span class="sd">        T (float): Desired window duration in seconds.</span>
+<span class="sd">        phase (str): Seismic phase name.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        list: [window_start, window_end] representing the time window boundaries.</span>
+
+<span class="sd">    Raises:</span>
+<span class="sd">        ValueError: If no arrivals are found for the specified phase.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Specify the model for travel time calculations</span>
+    <span class="n">model</span> <span class="o">=</span> <span class="n">TauPyModel</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="s1">&#39;iasp91&#39;</span><span class="p">)</span>
+
+    <span class="c1"># Compute the travel times</span>
+    <span class="n">arrivals</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">get_travel_times_geo</span><span class="p">(</span>
+        <span class="n">source_depth_in_km</span><span class="o">=</span><span class="n">event_depth</span><span class="p">,</span>
+        <span class="n">source_latitude_in_deg</span><span class="o">=</span><span class="n">event_latitude</span><span class="p">,</span>
+        <span class="n">source_longitude_in_deg</span><span class="o">=</span><span class="n">event_longitude</span><span class="p">,</span>
+        <span class="n">receiver_latitude_in_deg</span><span class="o">=</span><span class="n">station_latitude</span><span class="p">,</span>
+        <span class="n">receiver_longitude_in_deg</span><span class="o">=</span><span class="n">station_longitude</span><span class="p">,</span>
+        <span class="n">phase_list</span><span class="o">=</span><span class="p">(</span><span class="n">phase</span><span class="p">,))</span>
+
+    <span class="c1"># Get the arrival times of the desired phase</span>
+    <span class="n">arrival_times</span> <span class="o">=</span> <span class="p">[</span><span class="n">arrival</span><span class="o">.</span><span class="n">time</span> <span class="k">for</span> <span class="n">arrival</span> <span class="ow">in</span> <span class="n">arrivals</span><span class="p">]</span>
+
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">arrival_times</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;No arrivals found for the specified phase&#39;</span><span class="p">)</span>
+
+    <span class="c1"># Sort the arrival times in ascending order</span>
+    <span class="n">arrival_times</span><span class="o">.</span><span class="n">sort</span><span class="p">()</span>
+
+    <span class="c1"># Calculate the minimum and maximum arrival times</span>
+    <span class="n">min_arrival_time</span> <span class="o">=</span> <span class="n">arrival_times</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">max_arrival_time</span> <span class="o">=</span> <span class="n">arrival_times</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+
+    <span class="c1"># Calculate the window boundaries</span>
+    <span class="n">window_start</span> <span class="o">=</span> <span class="n">min_arrival_time</span> <span class="o">-</span> <span class="n">T</span> <span class="o">/</span> <span class="mi">2</span>
+    <span class="n">window_end</span> <span class="o">=</span> <span class="n">max_arrival_time</span> <span class="o">+</span> <span class="n">T</span> <span class="o">/</span> <span class="mi">2</span>
+
+    <span class="k">return</span> <span class="p">[</span><span class="n">window_start</span><span class="p">,</span> <span class="n">window_end</span><span class="p">]</span></div>
+
+
+
+<div class="viewcode-block" id="window_data">
+<a class="viewcode-back" href="../../../axikernels.aux.html#axikernels.aux.helper_functions.window_data">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">window_data</span><span class="p">(</span><span class="n">time_array</span><span class="p">,</span> <span class="n">data_array</span><span class="p">,</span> <span class="n">t_min</span><span class="p">,</span> <span class="n">t_max</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Eliminate time values and corresponding data outside a specified range.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        time_array (numpy.ndarray): Array of time values.</span>
+<span class="sd">        data_array (numpy.ndarray): Array of corresponding data values.</span>
+<span class="sd">        t_min (float): Minimum time value to keep.</span>
+<span class="sd">        t_max (float): Maximum time value to keep.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        Tuple[numpy.ndarray, numpy.ndarray]: Tuple containing the filtered time array and corresponding data array.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">mask</span> <span class="o">=</span> <span class="p">(</span><span class="n">time_array</span> <span class="o">&gt;=</span> <span class="n">t_min</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">time_array</span> <span class="o">&lt;=</span> <span class="n">t_max</span><span class="p">)</span>
+    <span class="n">filtered_time_array</span> <span class="o">=</span> <span class="n">time_array</span><span class="p">[</span><span class="n">mask</span><span class="p">]</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">filtered_data_array</span> <span class="o">=</span> <span class="n">data_array</span><span class="p">[:,</span><span class="n">mask</span><span class="p">]</span>
+    <span class="k">except</span><span class="p">:</span>
+        <span class="n">filtered_data_array</span> <span class="o">=</span> <span class="n">data_array</span><span class="p">[</span><span class="n">mask</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">filtered_time_array</span><span class="p">,</span> <span class="n">filtered_data_array</span></div>
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Adrian Marin Mag.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
