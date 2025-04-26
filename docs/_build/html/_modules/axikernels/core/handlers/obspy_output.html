@@ -146,17 +146,10 @@
 <a class="viewcode-back" href="../../../../axikernels.core.handlers.html#axikernels.core.handlers.obspy_output.ObspyfiedOutput.search_files">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">search_files</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">directory</span><span class="p">,</span> <span class="n">keyword</span><span class="p">,</span> <span class="n">include_subdirectories</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Search for files containing a specific keyword in a directory.</span>
-
-<span class="sd">        Args:</span>
-<span class="sd">            directory (str): The directory to search in.</span>
-<span class="sd">            keyword (str): The specific keyword to search for in file names.</span>
-<span class="sd">            include_subdirectories (bool, optional): Determines whether to</span>
-<span class="sd">            include subdirectories in the search.</span>
-<span class="sd">                Defaults to True.</span>
+<span class="sd">        Search for files in the output directory.</span>
 
 <span class="sd">        Returns:</span>
-<span class="sd">            list: A list of file paths that contain the specified keyword.</span>
+<span class="sd">            list: A list of file paths.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">matches</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="k">for</span> <span class="n">root</span><span class="p">,</span> <span class="n">dirnames</span><span class="p">,</span> <span class="n">filenames</span> <span class="ow">in</span> <span class="n">os</span><span class="o">.</span><span class="n">walk</span><span class="p">(</span><span class="n">directory</span><span class="p">):</span>

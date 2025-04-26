@@ -95,16 +95,8 @@
 <dt class="sig sig-object py" id="axikernels.aux.coordinate_transforms.cart2cyl">
 <span class="sig-prename descclassname"><span class="pre">axikernels.aux.coordinate_transforms.</span></span><span class="sig-name descname"><span class="pre">cart2cyl</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">points</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">ndarray</span></span></span><a class="reference internal" href="_modules/axikernels/aux/coordinate_transforms.html#cart2cyl"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#axikernels.aux.coordinate_transforms.cart2cyl" title="Link to this definition"></a></dt>
 <dd><p>Convert Cartesian coordinates to cylindrical coordinates.</p>
-<dl>
-<dt>Parameters:</dt><dd><p>point (np.ndarray): Array containing the Cartesian coordinates [x, y,
-z].</p>
-<blockquote>
-<div><ul class="simple">
-<li><p>x (float): x-coordinate.</p></li>
-<li><p>y (float): y-coordinate.</p></li>
-<li><p>z (float): z-coordinate.</p></li>
-</ul>
-</div></blockquote>
+<dl class="simple">
+<dt>Args:</dt><dd><p>points (np.ndarray): Array containing the Cartesian coordinates [x, y, z].</p>
 </dd>
 <dt>Returns:</dt><dd><dl class="simple">
 <dt>np.ndarray: Array containing the cylindrical coordinates [s, phi, z].</dt><dd><ul class="simple">
@@ -114,8 +106,6 @@ z].</p>
 </ul>
 </dd>
 </dl>
-</dd>
-<dt>Raises:</dt><dd><p>None.</p>
 </dd>
 </dl>
 </dd></dl>
@@ -123,17 +113,10 @@ z].</p>
 <dl class="py function">
 <dt class="sig sig-object py" id="axikernels.aux.coordinate_transforms.cart2cyl_mpmath">
 <span class="sig-prename descclassname"><span class="pre">axikernels.aux.coordinate_transforms.</span></span><span class="sig-name descname"><span class="pre">cart2cyl_mpmath</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">points</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">precision</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">64</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">ndarray</span></span></span><a class="reference internal" href="_modules/axikernels/aux/coordinate_transforms.html#cart2cyl_mpmath"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#axikernels.aux.coordinate_transforms.cart2cyl_mpmath" title="Link to this definition"></a></dt>
-<dd><p>Convert Cartesian coordinates to cylindrical coordinates.</p>
-<dl>
-<dt>Parameters:</dt><dd><p>point (np.ndarray): Array containing the Cartesian coordinates [x, y,
-z].</p>
-<blockquote>
-<div><ul class="simple">
-<li><p>x (float): x-coordinate.</p></li>
-<li><p>y (float): y-coordinate.</p></li>
-<li><p>z (float): z-coordinate.</p></li>
-</ul>
-</div></blockquote>
+<dd><p>Convert Cartesian coordinates to cylindrical coordinates using mpmath for high precision.</p>
+<dl class="simple">
+<dt>Args:</dt><dd><p>points (np.ndarray): Array containing the Cartesian coordinates [x, y, z].
+precision (int): Number of decimal places for arbitrary precision (default is 64).</p>
 </dd>
 <dt>Returns:</dt><dd><dl class="simple">
 <dt>np.ndarray: Array containing the cylindrical coordinates [s, phi, z].</dt><dd><ul class="simple">
@@ -143,8 +126,6 @@ z].</p>
 </ul>
 </dd>
 </dl>
-</dd>
-<dt>Raises:</dt><dd><p>None.</p>
 </dd>
 </dl>
 </dd></dl>
@@ -185,16 +166,8 @@ z (np.ndarray): Distance along cylindrical axis in meters.</p>
 <dt class="sig sig-object py" id="axikernels.aux.coordinate_transforms.cart2sph">
 <span class="sig-prename descclassname"><span class="pre">axikernels.aux.coordinate_transforms.</span></span><span class="sig-name descname"><span class="pre">cart2sph</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">points</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">ndarray</span></span></span><a class="reference internal" href="_modules/axikernels/aux/coordinate_transforms.html#cart2sph"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#axikernels.aux.coordinate_transforms.cart2sph" title="Link to this definition"></a></dt>
 <dd><p>Convert Cartesian coordinates to spherical coordinates.</p>
-<dl>
-<dt>Parameters:</dt><dd><p>point (np.ndarray): Array containing the Cartesian coordinates [x, y,
-z].</p>
-<blockquote>
-<div><ul class="simple">
-<li><p>x (float): x-coordinate.</p></li>
-<li><p>y (float): y-coordinate.</p></li>
-<li><p>z (float): z-coordinate.</p></li>
-</ul>
-</div></blockquote>
+<dl class="simple">
+<dt>Args:</dt><dd><p>points (np.ndarray): Array containing the Cartesian coordinates [x, y, z].</p>
 </dd>
 <dt>Returns:</dt><dd><dl class="simple">
 <dt>np.ndarray: Array containing the spherical coordinates [rad, lat, lon].</dt><dd><ul class="simple">
@@ -211,19 +184,10 @@ z].</p>
 <dl class="py function">
 <dt class="sig sig-object py" id="axikernels.aux.coordinate_transforms.cart2sph_mpmath">
 <span class="sig-prename descclassname"><span class="pre">axikernels.aux.coordinate_transforms.</span></span><span class="sig-name descname"><span class="pre">cart2sph_mpmath</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">points</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">precision</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">64</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">ndarray</span></span></span><a class="reference internal" href="_modules/axikernels/aux/coordinate_transforms.html#cart2sph_mpmath"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#axikernels.aux.coordinate_transforms.cart2sph_mpmath" title="Link to this definition"></a></dt>
-<dd><p>Convert Cartesian coordinates to spherical coordinates.</p>
-<dl>
-<dt>Parameters:</dt><dd><p>point (np.ndarray): Array containing the Cartesian coordinates [x, y,
-z].</p>
-<blockquote>
-<div><ul class="simple">
-<li><p>x (float): x-coordinate.</p></li>
-<li><p>y (float): y-coordinate.</p></li>
-<li><p>z (float): z-coordinate.</p></li>
-</ul>
-</div></blockquote>
-<p>precision (int): Number of decimal places for arbitrary precision
-(default is 64).</p>
+<dd><p>Convert Cartesian coordinates to spherical coordinates using mpmath for high precision.</p>
+<dl class="simple">
+<dt>Args:</dt><dd><p>points (np.ndarray): Array containing the Cartesian coordinates [x, y, z].
+precision (int): Number of decimal places for arbitrary precision (default is 64).</p>
 </dd>
 <dt>Returns:</dt><dd><dl class="simple">
 <dt>np.ndarray: Array containing the spherical coordinates [rad, lat, lon].</dt><dd><ul class="simple">
@@ -240,18 +204,14 @@ z].</p>
 <dl class="py function">
 <dt class="sig sig-object py" id="axikernels.aux.coordinate_transforms.cart_geo2cart_src">
 <span class="sig-prename descclassname"><span class="pre">axikernels.aux.coordinate_transforms.</span></span><span class="sig-name descname"><span class="pre">cart_geo2cart_src</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">points</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rotation_matrix</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">ndarray</span></span></span><a class="reference internal" href="_modules/axikernels/aux/coordinate_transforms.html#cart_geo2cart_src"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#axikernels.aux.coordinate_transforms.cart_geo2cart_src" title="Link to this definition"></a></dt>
-<dd><p>Rotate coordinates from the Earth frame to the source frame for an array of
-points.
-Args:</p>
-<blockquote>
-<div><p>points (np.ndarray): An array of shape (N, 3) containing the Cartesian
-coordinates [x, y, z] in the Earth frame.
-rotation_matrix (np.ndarray): A 3x3 numpy array representing the
-rotation matrix.</p>
-</div></blockquote>
+<dd><p>Rotate coordinates from the Earth frame to the source frame for an array of points.</p>
 <dl class="simple">
-<dt>Returns:</dt><dd><p>np.ndarray: An array containing the rotated Cartesian coordinates [x’,
-y’, z’] for each input point.</p>
+<dt>Args:</dt><dd><p>points (np.ndarray): An array of shape (N, 3) containing the Cartesian coordinates [x, y, z] in the Earth frame.
+rotation_matrix (np.ndarray): A 3x3 numpy array representing the rotation matrix.</p>
+</dd>
+<dt>Returns:</dt><dd><p>np.ndarray: An array containing the rotated Cartesian coordinates [x’, y’, z’] for each input point.</p>
+</dd>
+<dt>Raises:</dt><dd><p>ValueError: If the input array shapes are invalid.</p>
 </dd>
 </dl>
 </dd></dl>
@@ -259,16 +219,19 @@ y’, z’] for each input point.</p>
 <dl class="py function">
 <dt class="sig sig-object py" id="axikernels.aux.coordinate_transforms.sph2cart">
 <span class="sig-prename descclassname"><span class="pre">axikernels.aux.coordinate_transforms.</span></span><span class="sig-name descname"><span class="pre">sph2cart</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">points</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">ndarray</span></span></span><a class="reference internal" href="_modules/axikernels/aux/coordinate_transforms.html#sph2cart"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#axikernels.aux.coordinate_transforms.sph2cart" title="Link to this definition"></a></dt>
-<dd><p>Convert spherical coordinates to Cartesian coordinates for an array of
-points.
-Args:</p>
-<blockquote>
-<div><p>points (np.ndarray): An array of shape (N, 3) containing the spherical
-coordinates [rad, lat, lon].</p>
-</div></blockquote>
+<dd><p>Convert spherical coordinates to Cartesian coordinates for an array of points.</p>
 <dl class="simple">
-<dt>Returns:</dt><dd><p>np.ndarray: An array containing the Cartesian coordinates [x, y, z] for
-each input point.</p>
+<dt>Args:</dt><dd><dl class="simple">
+<dt>points (np.ndarray): An array of shape (N, 3) containing the spherical</dt><dd><p>coordinates [rad, lat, lon].</p>
+</dd>
+</dl>
+</dd>
+<dt>Returns:</dt><dd><dl class="simple">
+<dt>np.ndarray: An array containing the Cartesian coordinates [x, y, z] for</dt><dd><p>each input point.</p>
+</dd>
+</dl>
+</dd>
+<dt>Raises:</dt><dd><p>ValueError: If any radius value in <cite>points</cite> is negative.</p>
 </dd>
 </dl>
 </dd></dl>
@@ -276,18 +239,19 @@ each input point.</p>
 <dl class="py function">
 <dt class="sig sig-object py" id="axikernels.aux.coordinate_transforms.sph2cart_mpmath">
 <span class="sig-prename descclassname"><span class="pre">axikernels.aux.coordinate_transforms.</span></span><span class="sig-name descname"><span class="pre">sph2cart_mpmath</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">points</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">precision</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">64</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">ndarray</span></span></span><a class="reference internal" href="_modules/axikernels/aux/coordinate_transforms.html#sph2cart_mpmath"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#axikernels.aux.coordinate_transforms.sph2cart_mpmath" title="Link to this definition"></a></dt>
-<dd><p>Convert spherical coordinates to Cartesian coordinates for an array of
-points.
-Args:</p>
-<blockquote>
-<div><p>points (np.ndarray): An array of shape (N, 3) containing the spherical
-coordinates [rad, lat, lon].
-precision (int): Number of decimal places for arbitrary precision
-(default is 64).</p>
-</div></blockquote>
+<dd><p>Convert spherical coordinates to Cartesian coordinates using mpmath for high precision.</p>
 <dl class="simple">
-<dt>Returns:</dt><dd><p>np.ndarray: An array containing the Cartesian coordinates [x, y, z] for
-each input point.</p>
+<dt>Args:</dt><dd><p>points (np.ndarray): Array containing the spherical coordinates [rad, lat, lon].
+precision (int): Number of decimal places for arbitrary precision (default is 64).</p>
+</dd>
+<dt>Returns:</dt><dd><dl class="simple">
+<dt>np.ndarray: Array containing the Cartesian coordinates [x, y, z].</dt><dd><ul class="simple">
+<li><p>x (float): x-coordinate.</p></li>
+<li><p>y (float): y-coordinate.</p></li>
+<li><p>z (float): z-coordinate.</p></li>
+</ul>
+</dd>
+</dl>
 </dd>
 </dl>
 </dd></dl>

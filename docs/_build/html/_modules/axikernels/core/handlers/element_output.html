@@ -492,26 +492,24 @@
 <span class="sd">        Generate a stream with the wavefields computed at all stations given the location.</span>
 
 <span class="sd">        Args:</span>
-<span class="sd">            point (list): The location of the station in meters and radians/degrees.</span>
-<span class="sd">                        It should be a list with the following elements:</span>
-<span class="sd">                        - radial position in meters (float)</span>
-<span class="sd">                        - latitude in radians/degrees (float)</span>
-<span class="sd">                        - longitude in radians/degrees (float)</span>
+<span class="sd">            points (list): The location of the station in meters and radians/degrees.</span>
+<span class="sd">                It should be a list with the following elements:</span>
+<span class="sd">                - radial position in meters (float)</span>
+<span class="sd">                - latitude in radians/degrees (float)</span>
+<span class="sd">                - longitude in radians/degrees (float)</span>
 <span class="sd">            coord_in_deg (bool, optional): Specify whether the coordinates are in degrees.</span>
-<span class="sd">                                        Defaults to True.</span>
+<span class="sd">                Defaults to True.</span>
 <span class="sd">            channels (list, optional): List of wavefield channels to include.</span>
-<span class="sd">                                    Defaults to None, which includes all channels.</span>
+<span class="sd">                Defaults to None, which includes all channels.</span>
 <span class="sd">            time_limits (list, optional): Time limits for the data.</span>
-<span class="sd">                                        It should be a list with two elements:</span>
-<span class="sd">                                        - start time in seconds (float)</span>
-<span class="sd">                                        - end time in seconds (float)</span>
-<span class="sd">                                        Defaults to None, which includes all times.</span>
-<span class="sd">            fourier_order (int, optional): Fourier order. Defaults to None.</span>
+<span class="sd">                It should be a list with two elements:</span>
+<span class="sd">                - start time in seconds (float)</span>
+<span class="sd">                - end time in seconds (float)</span>
+<span class="sd">                Defaults to None, which includes all times.</span>
 
 <span class="sd">        Returns:</span>
 <span class="sd">            obspy.Stream: A stream containing the wavefields computed at all stations.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-
         <span class="c1"># Get time slices from time limits. We assume that all points have the same time axis!!!!</span>
         <span class="n">first_key</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">element_groups</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
         <span class="n">data_time</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">element_groups_info</span><span class="p">[</span><span class="n">first_key</span><span class="p">][</span><span class="s1">&#39;metadata&#39;</span><span class="p">][</span><span class="s1">&#39;data_time&#39;</span><span class="p">]</span>
@@ -990,22 +988,14 @@
     <span class="k">def</span><span class="w"> </span><span class="nf">load_data_on_mesh</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mesh</span><span class="p">:</span><span class="n">Mesh</span><span class="p">,</span> <span class="n">channels</span><span class="p">:</span> <span class="nb">list</span><span class="p">,</span> <span class="n">time_slices</span><span class="p">:</span> <span class="nb">list</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Load data on a mesh.</span>
-<span class="sd">        Not using multi-processing!</span>
 
 <span class="sd">        Args:</span>
-<span class="sd">            source_location (list): The source location [depth, latitude, longitude] in degrees.</span>
-<span class="sd">            station_location (list): The station location [depth, latitude, longitude] in degrees.</span>
-<span class="sd">            R_max (float): The maximum radius for the slice in Earth radii.</span>
-<span class="sd">            R_min (float): The minimum radius for the slice in Earth radii.</span>
-<span class="sd">            resolution (int): The resolution of the slice (number of points along each dimension).</span>
-<span class="sd">            channels (list): The channels of data to load.</span>
-<span class="sd">            return_slice (bool, optional): Whether to return additional slice information.</span>
-<span class="sd">                                        Defaults to False.</span>
+<span class="sd">            mesh (Mesh): The mesh object to load data onto.</span>
+<span class="sd">            channels (list): List of channels to load data for.</span>
+<span class="sd">            time_slices (list): List of time slices to load data for.</span>
 
 <span class="sd">        Returns:</span>
-<span class="sd">            numpy.ndarray or list: An ndarray containing the loaded data on the slice,</span>
-<span class="sd">                                and optionally, additional slice information.</span>
-
+<span class="sd">            np.ndarray: Data loaded onto the mesh.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">inplane_field</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">((</span><span class="n">mesh</span><span class="o">.</span><span class="n">resolution</span><span class="p">,</span> <span class="n">mesh</span><span class="o">.</span><span class="n">resolution</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">channels</span><span class="p">),</span> <span class="nb">len</span><span class="p">(</span><span class="n">time_slices</span><span class="p">)),</span> <span class="n">np</span><span class="o">.</span><span class="n">NaN</span><span class="p">)</span>
         <span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">load_data</span><span class="p">(</span><span class="n">points</span><span class="o">=</span><span class="n">mesh</span><span class="o">.</span><span class="n">points</span><span class="p">,</span> <span class="n">frame</span><span class="o">=</span><span class="s1">&#39;geographic&#39;</span><span class="p">,</span> <span class="n">coords</span><span class="o">=</span><span class="s1">&#39;spherical&#39;</span><span class="p">,</span> <span class="n">in_deg</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>

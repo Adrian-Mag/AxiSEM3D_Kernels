@@ -175,24 +175,13 @@ lower_range (float, optional): The lower percentile range for the colorbar inten
 <dl class="py method">
 <dt class="sig sig-object py" id="axikernels.core.handlers.element_output.ElementOutput.load_data_on_mesh">
 <span class="sig-name descname"><span class="pre">load_data_on_mesh</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">mesh</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="axikernels.aux.html#axikernels.aux.mesher.Mesh" title="axikernels.aux.mesher.Mesh"><span class="pre">Mesh</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">channels</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time_slices</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/axikernels/core/handlers/element_output.html#ElementOutput.load_data_on_mesh"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#axikernels.core.handlers.element_output.ElementOutput.load_data_on_mesh" title="Link to this definition"></a></dt>
-<dd><p>Load data on a mesh.
-Not using multi-processing!</p>
-<dl>
-<dt>Args:</dt><dd><p>source_location (list): The source location [depth, latitude, longitude] in degrees.
-station_location (list): The station location [depth, latitude, longitude] in degrees.
-R_max (float): The maximum radius for the slice in Earth radii.
-R_min (float): The minimum radius for the slice in Earth radii.
-resolution (int): The resolution of the slice (number of points along each dimension).
-channels (list): The channels of data to load.
-return_slice (bool, optional): Whether to return additional slice information.</p>
-<blockquote>
-<div><p>Defaults to False.</p>
-</div></blockquote>
+<dd><p>Load data on a mesh.</p>
+<dl class="simple">
+<dt>Args:</dt><dd><p>mesh (Mesh): The mesh object to load data onto.
+channels (list): List of channels to load data for.
+time_slices (list): List of time slices to load data for.</p>
 </dd>
-<dt>Returns:</dt><dd><dl class="simple">
-<dt>numpy.ndarray or list: An ndarray containing the loaded data on the slice,</dt><dd><p>and optionally, additional slice information.</p>
-</dd>
-</dl>
+<dt>Returns:</dt><dd><p>np.ndarray: Data loaded onto the mesh.</p>
 </dd>
 </dl>
 </dd></dl>
@@ -211,9 +200,9 @@ return_slice (bool, optional): Whether to return additional slice information.</
 <dt class="sig sig-object py" id="axikernels.core.handlers.element_output.ElementOutput.stream">
 <span class="sig-name descname"><span class="pre">stream</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">points</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">channels</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">coord_in_deg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time_limits</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Stream</span></span></span><a class="reference internal" href="_modules/axikernels/core/handlers/element_output.html#ElementOutput.stream"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#axikernels.core.handlers.element_output.ElementOutput.stream" title="Link to this definition"></a></dt>
 <dd><p>Generate a stream with the wavefields computed at all stations given the location.</p>
-<dl>
+<dl class="simple">
 <dt>Args:</dt><dd><dl class="simple">
-<dt>point (list): The location of the station in meters and radians/degrees.</dt><dd><p>It should be a list with the following elements:
+<dt>points (list): The location of the station in meters and radians/degrees.</dt><dd><p>It should be a list with the following elements:
 - radial position in meters (float)
 - latitude in radians/degrees (float)
 - longitude in radians/degrees (float)</p>
@@ -228,7 +217,6 @@ return_slice (bool, optional): Whether to return additional slice information.</
 Defaults to None, which includes all times.</p>
 </dd>
 </dl>
-<p>fourier_order (int, optional): Fourier order. Defaults to None.</p>
 </dd>
 <dt>Returns:</dt><dd><p>obspy.Stream: A stream containing the wavefields computed at all stations.</p>
 </dd>
@@ -260,17 +248,9 @@ and returns a stream with the wavefields computed at all stations</p>
 <dl class="py method">
 <dt class="sig sig-object py" id="axikernels.core.handlers.obspy_output.ObspyfiedOutput.search_files">
 <span class="sig-name descname"><span class="pre">search_files</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">directory</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">keyword</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">include_subdirectories</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/axikernels/core/handlers/obspy_output.html#ObspyfiedOutput.search_files"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#axikernels.core.handlers.obspy_output.ObspyfiedOutput.search_files" title="Link to this definition"></a></dt>
-<dd><p>Search for files containing a specific keyword in a directory.</p>
-<dl>
-<dt>Args:</dt><dd><p>directory (str): The directory to search in.
-keyword (str): The specific keyword to search for in file names.
-include_subdirectories (bool, optional): Determines whether to
-include subdirectories in the search.</p>
-<blockquote>
-<div><p>Defaults to True.</p>
-</div></blockquote>
-</dd>
-<dt>Returns:</dt><dd><p>list: A list of file paths that contain the specified keyword.</p>
+<dd><p>Search for files in the output directory.</p>
+<dl class="simple">
+<dt>Returns:</dt><dd><p>list: A list of file paths.</p>
 </dd>
 </dl>
 </dd></dl>
