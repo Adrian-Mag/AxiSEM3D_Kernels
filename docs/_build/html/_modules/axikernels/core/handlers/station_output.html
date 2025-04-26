@@ -1,0 +1,525 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>axikernels.core.handlers.station_output &mdash; Axikernels 0.1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../../_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="../../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../../_static/documentation_options.js?v=2709fde1"></script>
+      <script src="../../../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../../index.html" class="icon icon-home">
+            Axikernels
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../modules.html">axikernels</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../../index.html">Axikernels</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">axikernels.core.handlers.station_output</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for axikernels.core.handlers.station_output</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Class for handling axisem station output in netcdf format.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">obspy</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">obspy</span><span class="w"> </span><span class="kn">import</span> <span class="n">UTCDateTime</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">netCDF4</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">nc</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">yaml</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">obspy.core.inventory</span><span class="w"> </span><span class="kn">import</span> <span class="n">Inventory</span><span class="p">,</span> <span class="n">Network</span><span class="p">,</span> <span class="n">Station</span><span class="p">,</span> <span class="n">Channel</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">.axisem3d_output</span><span class="w"> </span><span class="kn">import</span> <span class="n">AxiSEM3DOutput</span>
+
+
+<div class="viewcode-block" id="StationOutput">
+<a class="viewcode-back" href="../../../../axikernels.core.handlers.html#axikernels.core.handlers.station_output.StationOutput">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">StationOutput</span><span class="p">(</span><span class="n">AxiSEM3DOutput</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path_to_station_output</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Class for handling axisem station output in netcdf format.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            path (str): Path to station output directory of simultaion</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">path_to_simulation</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_find_simulation_path</span><span class="p">(</span><span class="n">path_to_station_output</span><span class="p">)</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">path_to_simulation</span><span class="p">)</span>
+
+        <span class="c1"># Name and path of station output</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">path_to_station_output</span> <span class="o">=</span> <span class="n">path_to_station_output</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">station_group_name</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">path_to_station_output</span><span class="p">)</span>
+        <span class="c1"># Load output files</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_files</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_load_files</span><span class="p">()</span>
+        <span class="c1"># Load netcdf data as Datasets</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_nc_data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_load_netcdf_datasets</span><span class="p">()</span>
+        <span class="c1"># read the rank list file</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_rank_list</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_load_rank_list</span><span class="p">()</span>
+        <span class="c1"># Load time data</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">data_time</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_time</span><span class="p">()</span>
+        <span class="c1"># Load metadata</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_load_metadata</span><span class="p">()</span>
+        <span class="c1"># Store inventory</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_stored_inventory</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_find_simulation_path</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Takes in the path to a station file used for axisem3d</span>
+<span class="sd">        and returns a stream with the wavefields computed at all stations</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            path_to_station_file (str): path to station.txt file</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            parent_directory</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">current_directory</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+        <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+            <span class="n">parent_directory</span><span class="p">,</span> <span class="n">base_name</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">current_directory</span><span class="p">)</span>
+            <span class="k">if</span> <span class="s1">&#39;output&#39;</span> <span class="ow">in</span> <span class="n">base_name</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">parent_directory</span>
+            <span class="k">elif</span> <span class="n">current_directory</span> <span class="o">==</span> <span class="n">parent_directory</span><span class="p">:</span>
+                <span class="c1"># Reached the root directory, &quot;output&quot; directory not found</span>
+                <span class="k">return</span> <span class="kc">None</span>
+            <span class="n">current_directory</span> <span class="o">=</span> <span class="n">parent_directory</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_load_metadata</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">inparam_output</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">file</span><span class="p">:</span>
+            <span class="n">output_yaml</span> <span class="o">=</span> <span class="n">yaml</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">file</span><span class="p">,</span> <span class="n">Loader</span><span class="o">=</span><span class="n">yaml</span><span class="o">.</span><span class="n">FullLoader</span><span class="p">)</span>
+            <span class="n">station_group</span> <span class="o">=</span> <span class="n">output_yaml</span><span class="p">[</span><span class="s1">&#39;list_of_station_groups&#39;</span><span class="p">][</span><span class="mi">0</span><span class="p">][</span><span class="bp">self</span><span class="o">.</span><span class="n">station_group_name</span><span class="p">]</span> <span class="c1"># noqa</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">coordinate_frame</span> <span class="o">=</span> <span class="n">station_group</span><span class="p">[</span><span class="s1">&#39;wavefields&#39;</span><span class="p">][</span><span class="s1">&#39;coordinate_frame&#39;</span><span class="p">]</span> <span class="c1"># noqa</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">channels</span> <span class="o">=</span> <span class="n">station_group</span><span class="p">[</span><span class="s1">&#39;wavefields&#39;</span><span class="p">][</span><span class="s1">&#39;channels&#39;</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_stations_file_name</span> <span class="o">=</span> <span class="n">station_group</span><span class="p">[</span><span class="s1">&#39;locations&#39;</span><span class="p">][</span><span class="s1">&#39;station_file&#39;</span><span class="p">]</span> <span class="c1"># noqa</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_stations_file_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">path_to_simulation</span> <span class="o">+</span> <span class="s1">&#39;/input/&#39;</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">_stations_file_name</span> <span class="c1"># noqa</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">detailed_channels</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_detailed_channels</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">detailed_channels</span> <span class="o">=</span> <span class="p">[</span><span class="n">element</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;1&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">coordinate_frame</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span><span class="o">.</span> <span class="c1"># noqa</span>
+                                  <span class="n">replace</span><span class="p">(</span><span class="s1">&#39;2&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">coordinate_frame</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span><span class="o">.</span>
+                                  <span class="n">replace</span><span class="p">(</span><span class="s1">&#39;3&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">coordinate_frame</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+                                  <span class="k">for</span> <span class="n">element</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">detailed_channels</span><span class="p">]</span>
+        <span class="n">default_event_time</span> <span class="o">=</span> <span class="n">UTCDateTime</span><span class="p">(</span><span class="s2">&quot;1970-01-01T00:00:00.0Z&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_starttime</span> <span class="o">=</span> <span class="n">default_event_time</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">data_time</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_load_files</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">pattern</span> <span class="o">=</span> <span class="s1">&#39;axisem3d_synthetics.nc.rank&#39;</span>
+        <span class="n">files</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="n">f</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">os</span><span class="o">.</span><span class="n">listdir</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">path_to_station_output</span><span class="p">)</span> <span class="k">if</span> <span class="n">pattern</span> <span class="ow">in</span> <span class="n">f</span>
+            <span class="p">]</span>
+        <span class="k">return</span> <span class="n">files</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_load_netcdf_datasets</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">netcdf_data</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="n">filename</span><span class="p">:</span> <span class="n">nc</span><span class="o">.</span><span class="n">Dataset</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">path_to_station_output</span> <span class="o">+</span> <span class="s1">&#39;/&#39;</span> <span class="o">+</span> <span class="n">filename</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">filename</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_files</span>
+            <span class="p">}</span>
+        <span class="k">return</span> <span class="n">netcdf_data</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_load_rank_list</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">rank_list</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">path_to_station_output</span><span class="p">,</span> <span class="s1">&#39;rank_station.info&#39;</span><span class="p">),</span>
+            <span class="n">sep</span><span class="o">=</span><span class="s1">&#39; &#39;</span><span class="p">,</span>
+            <span class="n">header</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+            <span class="n">names</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;MPI_RANK&#39;</span><span class="p">,</span> <span class="s1">&#39;STATION_KEY&#39;</span><span class="p">,</span> <span class="s1">&#39;STATION_INDEX_IN_RANK&#39;</span><span class="p">],</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="n">rank_list</span>
+
+<div class="viewcode-block" id="StationOutput.load_data_at_station">
+<a class="viewcode-back" href="../../../../axikernels.core.handlers.html#axikernels.core.handlers.station_output.StationOutput.load_data_at_station">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">load_data_at_station</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">network</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+                             <span class="n">station_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+                             <span class="n">channels</span><span class="p">:</span> <span class="nb">list</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                             <span class="n">time_limits</span><span class="p">:</span> <span class="nb">list</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Load wave data at a specific station.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            network (str): Network name</span>
+<span class="sd">            station_name (str): Station name</span>
+<span class="sd">            channels (list, optional): List of channel names. Defaults to None.</span>
+<span class="sd">            time_limits (list, optional): List of time limits [t_min, t_max].</span>
+<span class="sd">            Defaults to None.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            np.ndarray: Wave data at the station</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c1"># Form the station key</span>
+        <span class="n">station_key</span> <span class="o">=</span> <span class="n">network</span> <span class="o">+</span> <span class="s1">&#39;.&#39;</span> <span class="o">+</span> <span class="n">station_name</span>
+        <span class="c1"># Find the file and location within the file of the station</span>
+        <span class="n">row</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rank_list</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_rank_list</span><span class="p">[</span><span class="s1">&#39;STATION_KEY&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="n">station_key</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">row</span><span class="o">.</span><span class="n">empty</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;The station &#39;</span> <span class="o">+</span> <span class="n">station_key</span> <span class="o">+</span> <span class="s1">&#39; does not exist.&#39;</span><span class="p">)</span>
+        <span class="n">rank_index</span> <span class="o">=</span> <span class="n">row</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">tolist</span><span class="p">()[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">in_file_index</span> <span class="o">=</span> <span class="n">row</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">tolist</span><span class="p">()[</span><span class="mi">0</span><span class="p">][</span><span class="mi">2</span><span class="p">]</span>
+        <span class="n">filename</span> <span class="o">=</span> <span class="s1">&#39;axisem3d_synthetics.nc.rank&#39;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">rank_index</span><span class="p">)</span>
+        <span class="c1"># get wave data for this rank</span>
+        <span class="n">wave_data</span> <span class="o">=</span> <span class="n">nc</span><span class="o">.</span><span class="n">Dataset</span><span class="p">(</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">path_to_station_output</span><span class="p">,</span> <span class="n">filename</span><span class="p">)</span>
+        <span class="p">)[</span><span class="s1">&#39;data_wave&#39;</span><span class="p">][</span><span class="nb">int</span><span class="p">(</span><span class="n">in_file_index</span><span class="p">)]</span><span class="o">.</span><span class="n">filled</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="n">channels</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_check_elements</span><span class="p">(</span><span class="n">channels</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">channels</span><span class="p">)</span> <span class="ow">or</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_check_elements</span><span class="p">(</span><span class="n">channels</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">detailed_channels</span><span class="p">)):</span>
+                <span class="c1"># Filter by channels chosen</span>
+                <span class="n">channel_indices</span> <span class="o">=</span> <span class="p">[]</span>
+                <span class="k">for</span> <span class="n">channel</span> <span class="ow">in</span> <span class="n">channels</span><span class="p">:</span>
+                    <span class="n">channel_indices</span> <span class="o">+=</span> <span class="p">[</span>
+                        <span class="n">index</span>
+                        <span class="k">for</span> <span class="n">index</span><span class="p">,</span> <span class="n">element</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">detailed_channels</span><span class="p">)</span>
+                        <span class="k">if</span> <span class="n">element</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="n">channel</span><span class="p">)]</span>
+                <span class="n">channel_indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">channel_indices</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s1">&#39;Only the following channels exist: &#39;</span> <span class="o">+</span>
+                                <span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">detailed_channels</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">channel_indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">detailed_channels</span><span class="p">))</span>
+        <span class="k">if</span> <span class="n">time_limits</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">min</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data_time</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">time_limits</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="ow">and</span>
+                    <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data_time</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">time_limits</span><span class="p">[</span><span class="mi">1</span><span class="p">]):</span>
+                <span class="c1"># Find the indices of elements between t_min and t_max</span>
+                <span class="n">indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">data_time</span> <span class="o">&gt;=</span> <span class="n">time_limits</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="o">&amp;</span>
+                                   <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data_time</span> <span class="o">&lt;=</span> <span class="n">time_limits</span><span class="p">[</span><span class="mi">1</span><span class="p">]))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s1">&#39;Times must be between: &#39;</span> <span class="o">+</span>
+                                <span class="nb">str</span><span class="p">(</span><span class="nb">min</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data_time</span><span class="p">))</span> <span class="o">+</span>
+                                <span class="s1">&#39; and &#39;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="nb">max</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data_time</span><span class="p">)))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data_time</span><span class="p">))</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="n">wave_data</span><span class="p">[</span><span class="n">channel_indices</span><span class="p">][:,</span> <span class="n">indices</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">result</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">result</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">result</span></div>
+
+
+<div class="viewcode-block" id="StationOutput.stream">
+<a class="viewcode-back" href="../../../../axikernels.core.handlers.html#axikernels.core.handlers.station_output.StationOutput.stream">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">stream</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">networks</span><span class="p">:</span> <span class="nb">list</span><span class="p">,</span>
+               <span class="n">station_names</span><span class="p">:</span> <span class="nb">list</span><span class="p">,</span>
+               <span class="n">locations</span><span class="p">:</span> <span class="nb">list</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+               <span class="n">channels</span><span class="p">:</span> <span class="nb">list</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+               <span class="n">time_limits</span><span class="p">:</span> <span class="nb">list</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">obspy</span><span class="o">.</span><span class="n">Stream</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns stream with data from the chosen stations and channels</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            networks (list): List of strings with networks</span>
+<span class="sd">            station_names (list): List of strings with stations</span>
+<span class="sd">            locations (list): List of strings with locations</span>
+<span class="sd">            channels (str): String of channels</span>
+<span class="sd">            data_type (str, optional): Type of data output (eg RTZ). Defaults</span>
+<span class="sd">            to &#39;RTZ&#39;.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            obspy.Stream: Obspy Stream of data</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c1"># Initialize stream that will hold all the traces</span>
+        <span class="n">stream</span> <span class="o">=</span> <span class="n">obspy</span><span class="o">.</span><span class="n">Stream</span><span class="p">()</span>
+        <span class="c1"># Compute sampling delta (it is the same for all traces) and no of</span>
+        <span class="c1"># points per trace</span>
+        <span class="n">delta</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data_time</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">data_time</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">npts</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data_time</span><span class="p">)</span>
+        <span class="c1"># Form full station name from components given (not including channel</span>
+        <span class="c1"># in the name)</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">network</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">networks</span><span class="p">):</span>
+            <span class="n">station_name</span> <span class="o">=</span> <span class="n">station_names</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">locations</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">location</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">location</span> <span class="o">=</span> <span class="n">locations</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+
+            <span class="k">if</span> <span class="n">channels</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">selected_detailed_channels</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">detailed_channels</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">selected_detailed_channels</span> <span class="o">=</span> <span class="p">[</span>
+                    <span class="n">element</span> <span class="k">for</span> <span class="n">element</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">detailed_channels</span>
+                    <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">element</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="n">prefix</span><span class="p">)</span> <span class="k">for</span> <span class="n">prefix</span> <span class="ow">in</span> <span class="n">channels</span><span class="p">)]</span>
+
+            <span class="k">for</span> <span class="n">chn_index</span><span class="p">,</span> <span class="n">chn</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">selected_detailed_channels</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">location</span> <span class="o">==</span> <span class="s1">&#39;&#39;</span><span class="p">:</span>
+                    <span class="c1"># extract data</span>
+                    <span class="k">try</span><span class="p">:</span>
+                        <span class="n">wavefield_data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">load_data_at_station</span><span class="p">(</span>
+                            <span class="n">network</span><span class="p">,</span> <span class="n">station_name</span><span class="p">,</span> <span class="n">channels</span><span class="p">,</span> <span class="n">time_limits</span>
+                            <span class="p">)</span>
+                    <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+                        <span class="n">wavefield_data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">load_data_at_station</span><span class="p">(</span>
+                            <span class="n">network</span><span class="p">,</span> <span class="n">station_name</span><span class="p">,</span> <span class="n">channels</span><span class="p">,</span> <span class="n">time_limits</span>
+                            <span class="p">)</span>
+                    <span class="c1"># form obspy trace</span>
+                    <span class="n">trace</span> <span class="o">=</span> <span class="n">obspy</span><span class="o">.</span><span class="n">Trace</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">ascontiguousarray</span><span class="p">(</span><span class="n">wavefield_data</span><span class="p">[</span><span class="n">chn_index</span><span class="p">]))</span>
+                    <span class="n">trace</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">delta</span> <span class="o">=</span> <span class="n">delta</span>
+                    <span class="n">trace</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">ntps</span> <span class="o">=</span> <span class="n">npts</span>
+                    <span class="n">trace</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">network</span> <span class="o">=</span> <span class="n">network</span>
+                    <span class="n">trace</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">station</span> <span class="o">=</span> <span class="n">station_name</span>
+                    <span class="n">trace</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">location</span> <span class="o">=</span> <span class="n">location</span>
+                    <span class="n">trace</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">channel</span> <span class="o">=</span> <span class="n">chn</span>
+                    <span class="n">trace</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">starttime</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_starttime</span>
+                    <span class="n">stream</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">trace</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="c1"># extract data</span>
+                    <span class="n">wavefield_data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">load_data_at_station</span><span class="p">(</span>
+                        <span class="n">network</span><span class="p">,</span> <span class="n">station_name</span><span class="p">,</span> <span class="n">channels</span><span class="p">,</span> <span class="n">time_limits</span>
+                        <span class="p">)</span>
+                    <span class="c1"># form obspy trace</span>
+                    <span class="n">trace</span> <span class="o">=</span> <span class="n">obspy</span><span class="o">.</span><span class="n">Trace</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">ascontiguousarray</span><span class="p">(</span><span class="n">wavefield_data</span><span class="p">[</span><span class="n">chn_index</span><span class="p">]))</span>
+                    <span class="n">trace</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">delta</span> <span class="o">=</span> <span class="n">delta</span>
+                    <span class="n">trace</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">ntps</span> <span class="o">=</span> <span class="n">npts</span>
+                    <span class="n">trace</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">network</span> <span class="o">=</span> <span class="n">network</span>
+                    <span class="n">trace</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">station</span> <span class="o">=</span> <span class="n">station_name</span>
+                    <span class="n">trace</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">location</span> <span class="o">=</span> <span class="n">location</span>
+                    <span class="n">trace</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">channel</span> <span class="o">=</span> <span class="n">chn</span>
+                    <span class="n">trace</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">starttime</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">starttime</span>
+                    <span class="n">stream</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">trace</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">stream</span></div>
+
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_get_time</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Time axis of waveform</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            np.ndarray: time</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">next</span><span class="p">(</span><span class="nb">iter</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_nc_data</span><span class="o">.</span><span class="n">values</span><span class="p">()))[</span><span class="s1">&#39;data_time&#39;</span><span class="p">][:]</span><span class="o">.</span><span class="n">filled</span><span class="p">()</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_check_elements</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">list1</span><span class="p">,</span> <span class="n">list2</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Checks if all elements in list1 can be found in list2.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            list1 (list): The first list.</span>
+<span class="sd">            list2 (list): The second list.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            bool: True if all elements in list1 are found in list2, False</span>
+<span class="sd">            otherwise.</span>
+<span class="sd">            list: List of elements from list1 that are not found in list2.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">missing_elements</span> <span class="o">=</span> <span class="p">[</span><span class="n">element</span> <span class="k">for</span> <span class="n">element</span> <span class="ow">in</span> <span class="n">list1</span> <span class="k">if</span>
+                            <span class="n">element</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">list2</span><span class="p">]</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">missing_elements</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">True</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">False</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_get_detailed_channels</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot; The existence of this function is the terrbile</span>
+<span class="sd">         consequence of the absence of a list of channels</span>
+<span class="sd">          in the metadata of stations output. It&#39;s horrible &quot;&quot;&quot;</span>
+
+        <span class="n">U</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;U1&#39;</span><span class="p">,</span> <span class="s1">&#39;U2&#39;</span><span class="p">,</span> <span class="s1">&#39;U3&#39;</span><span class="p">]</span>
+        <span class="n">G</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;G11&#39;</span><span class="p">,</span> <span class="s1">&#39;G12&#39;</span><span class="p">,</span> <span class="s1">&#39;G13&#39;</span><span class="p">,</span> <span class="s1">&#39;G21&#39;</span><span class="p">,</span> <span class="s1">&#39;G22&#39;</span><span class="p">,</span> <span class="s1">&#39;G23&#39;</span><span class="p">,</span> <span class="s1">&#39;G31&#39;</span><span class="p">,</span> <span class="s1">&#39;G32&#39;</span><span class="p">,</span> <span class="s1">&#39;G33&#39;</span><span class="p">]</span>
+        <span class="n">E</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;E11&#39;</span><span class="p">,</span> <span class="s1">&#39;E22&#39;</span><span class="p">,</span> <span class="s1">&#39;E33&#39;</span><span class="p">,</span> <span class="s1">&#39;E23&#39;</span><span class="p">,</span> <span class="s1">&#39;E13&#39;</span><span class="p">,</span> <span class="s1">&#39;E12&#39;</span><span class="p">]</span>
+        <span class="n">S</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;S11&#39;</span><span class="p">,</span> <span class="s1">&#39;S12&#39;</span><span class="p">,</span> <span class="s1">&#39;S13&#39;</span><span class="p">,</span> <span class="s1">&#39;S22&#39;</span><span class="p">,</span> <span class="s1">&#39;S23&#39;</span><span class="p">,</span> <span class="s1">&#39;S33&#39;</span><span class="p">]</span>
+        <span class="n">R</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;R1&#39;</span><span class="p">,</span> <span class="s1">&#39;R2&#39;</span><span class="p">,</span> <span class="s1">&#39;R3&#39;</span><span class="p">]</span>
+
+        <span class="n">detailed_channels</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">channel_type</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">channels</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">channel_type</span> <span class="o">==</span> <span class="s1">&#39;U&#39;</span><span class="p">:</span>
+                <span class="n">detailed_channels</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">U</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="n">channel_type</span> <span class="o">==</span> <span class="s1">&#39;G&#39;</span><span class="p">:</span>
+                <span class="n">detailed_channels</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">G</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="n">channel_type</span> <span class="o">==</span> <span class="s1">&#39;E&#39;</span><span class="p">:</span>
+                <span class="n">detailed_channels</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">E</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="n">channel_type</span> <span class="o">==</span> <span class="s1">&#39;S&#39;</span><span class="p">:</span>
+                <span class="n">detailed_channels</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">S</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="n">channel_type</span> <span class="o">==</span> <span class="s1">&#39;R&#39;</span><span class="p">:</span>
+                <span class="n">detailed_channels</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">R</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">detailed_channels</span>
+
+<div class="viewcode-block" id="StationOutput.parse_to_mseed">
+<a class="viewcode-back" href="../../../../axikernels.core.handlers.html#axikernels.core.handlers.station_output.StationOutput.parse_to_mseed">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">parse_to_mseed</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">channels</span><span class="p">:</span> <span class="nb">list</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                       <span class="n">time_limits</span><span class="p">:</span> <span class="nb">list</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Parse the data to MiniSEED format.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            channels (list, optional): List of channel names. Defaults to None.</span>
+<span class="sd">            time_limits (list, optional): List of time limits [t_min, t_max].</span>
+<span class="sd">            Defaults to None.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            obspy.Stream: ObsPy Stream object containing the data</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">station_key_list</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rank_list</span><span class="p">[</span><span class="s1">&#39;STATION_KEY&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">tolist</span><span class="p">()[</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+
+        <span class="c1"># Extract the string before and after the dot</span>
+        <span class="n">networks</span> <span class="o">=</span> <span class="p">[</span><span class="n">key</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;.&quot;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">station_key_list</span><span class="p">]</span>
+        <span class="n">stations</span> <span class="o">=</span> <span class="p">[</span><span class="n">key</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;.&quot;</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span> <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">station_key_list</span><span class="p">]</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">stream</span><span class="p">(</span><span class="n">networks</span><span class="p">,</span> <span class="n">stations</span><span class="p">)</span></div>
+
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">inventory</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_stored_inventory</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">networks</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="n">station_names</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="n">locations</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="n">channels_list</span> <span class="o">=</span> <span class="p">[]</span>
+
+            <span class="c1"># Get path to where the new inventory will be saved, and coordinates</span>
+
+            <span class="c1"># Create new empty inventory</span>
+            <span class="n">inv</span> <span class="o">=</span> <span class="n">Inventory</span><span class="p">(</span>
+                <span class="n">networks</span><span class="o">=</span><span class="p">[],</span>
+                <span class="n">source</span><span class="o">=</span><span class="s2">&quot;Inventory from AxiSEM3D STATIONS file&quot;</span><span class="p">)</span>
+
+            <span class="c1"># Open station file</span>
+            <span class="n">stations</span> <span class="o">=</span> <span class="p">(</span><span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_stations_file_path</span><span class="p">,</span>
+                        <span class="n">sep</span><span class="o">=</span><span class="sa">r</span><span class="s1">&#39;\s+&#39;</span><span class="p">,</span>
+                        <span class="n">header</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+                        <span class="n">names</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">,</span>
+                            <span class="s2">&quot;network&quot;</span><span class="p">,</span>
+                            <span class="s2">&quot;latitude&quot;</span><span class="p">,</span>
+                            <span class="s2">&quot;longitude&quot;</span><span class="p">,</span>
+                            <span class="s2">&quot;useless&quot;</span><span class="p">,</span>
+                            <span class="s2">&quot;depth&quot;</span><span class="p">],</span>
+                        <span class="n">comment</span><span class="o">=</span><span class="s1">&#39;#&#39;</span><span class="p">))</span>
+
+            <span class="c1"># Iterate over all stations in the stations file</span>
+            <span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">station</span> <span class="ow">in</span> <span class="n">stations</span><span class="o">.</span><span class="n">iterrows</span><span class="p">():</span>
+                <span class="c1"># Create network if not already existent</span>
+                <span class="n">net_exists</span> <span class="o">=</span> <span class="kc">False</span>
+                <span class="k">for</span> <span class="n">network</span> <span class="ow">in</span> <span class="n">inv</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">network</span><span class="o">.</span><span class="n">code</span> <span class="o">==</span> <span class="n">station</span><span class="p">[</span><span class="s1">&#39;network&#39;</span><span class="p">]:</span>
+                        <span class="n">net_exists</span> <span class="o">=</span> <span class="kc">True</span>
+                        <span class="n">net</span> <span class="o">=</span> <span class="n">network</span>
+                <span class="k">if</span> <span class="n">net_exists</span> <span class="ow">is</span> <span class="kc">False</span><span class="p">:</span>
+                    <span class="n">net</span> <span class="o">=</span> <span class="n">Network</span><span class="p">(</span>
+                        <span class="n">code</span><span class="o">=</span><span class="n">station</span><span class="p">[</span><span class="s1">&#39;network&#39;</span><span class="p">],</span>
+                        <span class="n">stations</span><span class="o">=</span><span class="p">[])</span>
+                    <span class="c1"># add new network to inventory</span>
+                    <span class="n">inv</span><span class="o">.</span><span class="n">networks</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">net</span><span class="p">)</span>
+
+                <span class="c1"># Create station (should be unique!)</span>
+                <span class="n">sta</span> <span class="o">=</span> <span class="n">Station</span><span class="p">(</span>
+                    <span class="n">code</span><span class="o">=</span><span class="n">station</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">],</span>
+                    <span class="n">latitude</span><span class="o">=</span><span class="n">station</span><span class="p">[</span><span class="s1">&#39;latitude&#39;</span><span class="p">],</span>
+                    <span class="n">longitude</span><span class="o">=</span><span class="n">station</span><span class="p">[</span><span class="s1">&#39;longitude&#39;</span><span class="p">],</span>
+                    <span class="n">elevation</span><span class="o">=-</span><span class="n">station</span><span class="p">[</span><span class="s1">&#39;depth&#39;</span><span class="p">])</span>
+                <span class="n">net</span><span class="o">.</span><span class="n">stations</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">sta</span><span class="p">)</span>
+
+                <span class="c1"># Create the channels</span>
+                <span class="k">for</span> <span class="n">channel</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">detailed_channels</span><span class="p">:</span>
+                    <span class="n">cha</span> <span class="o">=</span> <span class="n">Channel</span><span class="p">(</span>
+                        <span class="n">code</span><span class="o">=</span><span class="n">channel</span><span class="p">,</span>
+                        <span class="n">location_code</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">,</span>
+                        <span class="n">latitude</span><span class="o">=</span><span class="n">station</span><span class="p">[</span><span class="s1">&#39;latitude&#39;</span><span class="p">],</span>
+                        <span class="n">longitude</span><span class="o">=</span><span class="n">station</span><span class="p">[</span><span class="s1">&#39;longitude&#39;</span><span class="p">],</span>
+                        <span class="n">elevation</span><span class="o">=-</span><span class="n">station</span><span class="p">[</span><span class="s1">&#39;depth&#39;</span><span class="p">],</span>
+                        <span class="n">depth</span><span class="o">=</span><span class="n">station</span><span class="p">[</span><span class="s1">&#39;depth&#39;</span><span class="p">],</span>
+                        <span class="n">azimuth</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                        <span class="n">dip</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                        <span class="n">sample_rate</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+                    <span class="n">sta</span><span class="o">.</span><span class="n">channels</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">cha</span><span class="p">)</span>
+
+                <span class="c1"># Form the lists that will be used as inputs with read_netcdf</span>
+                <span class="c1"># to get the stream of the wavefield data</span>
+                <span class="n">networks</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">station</span><span class="p">[</span><span class="s1">&#39;network&#39;</span><span class="p">])</span>
+                <span class="n">station_names</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">station</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">])</span>
+                <span class="n">locations</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;&#39;</span><span class="p">)</span>  <span class="c1"># Axisem does not use locations</span>
+                <span class="n">channels_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">detailed_channels</span><span class="p">)</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">_stored_inventory</span> <span class="o">=</span> <span class="n">inv</span>
+            <span class="k">return</span> <span class="n">inv</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_stored_inventory</span>
+
+<div class="viewcode-block" id="StationOutput.obspyfy">
+<a class="viewcode-back" href="../../../../axikernels.core.handlers.html#axikernels.core.handlers.station_output.StationOutput.obspyfy">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">obspyfy</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># Create obspyfy folder if not existent already</span>
+        <span class="n">obspyfy_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">path_to_station_output</span> <span class="o">+</span> <span class="s1">&#39;/obspyfied&#39;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">obspyfy_path</span><span class="p">):</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">obspyfy_path</span><span class="p">)</span>
+        <span class="n">cat</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">catalogue</span>
+        <span class="n">cat</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">obspyfy_path</span> <span class="o">+</span> <span class="s1">&#39;/cat.xml&#39;</span><span class="p">,</span> <span class="nb">format</span><span class="o">=</span><span class="s1">&#39;QUAKEML&#39;</span><span class="p">)</span>
+
+        <span class="n">inv</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">inventory</span>
+        <span class="n">inv_file_name</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_stations_file_name</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="s1">&#39;_inv.xml&#39;</span>
+        <span class="n">inv</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">obspyfy_path</span> <span class="o">+</span> <span class="s1">&#39;/&#39;</span> <span class="o">+</span> <span class="n">inv_file_name</span><span class="p">,</span> <span class="nb">format</span><span class="o">=</span><span class="s2">&quot;stationxml&quot;</span><span class="p">)</span>
+
+        <span class="n">stream</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">parse_to_mseed</span><span class="p">()</span>
+        <span class="n">mseed_file_name</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">station_group_name</span> <span class="o">+</span> <span class="s1">&#39;.mseed&#39;</span>
+        <span class="n">stream</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">obspyfy_path</span> <span class="o">+</span> <span class="s1">&#39;/&#39;</span> <span class="o">+</span> <span class="n">mseed_file_name</span><span class="p">,</span> <span class="nb">format</span><span class="o">=</span><span class="s2">&quot;MSEED&quot;</span><span class="p">)</span></div>
+</div>
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Adrian Marin Mag.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
