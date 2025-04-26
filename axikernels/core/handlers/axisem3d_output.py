@@ -1,6 +1,8 @@
 import os
 import yaml
-from obspy.core.event import Catalog, Event, Origin, FocalMechanism, MomentTensor, Tensor # noqa
+from obspy.core.event import (
+    Catalog, Event, Origin, FocalMechanism, MomentTensor, Tensor
+)
 from obspy import UTCDateTime
 from obspy.geodetics import FlinnEngdahl
 from obspy import read_events
@@ -38,16 +40,19 @@ class AxiSEM3DOutput:
         Initialize the AxiSEM3DOutput instance.
 
         Args:
-            path_to_simulation (str): Path to the AxiSEM3D simulation
-            directory.
+            path_to_simulation (str): Path to the AxiSEM3D simulation directory.
+            path_to_base_model (str, optional): Path to the base model file. If None, the method searches for a `.bm` file in the input folder.
+
+        Raises:
+            ValueError: If no base model files are found.
         """
         self.path_to_simulation = path_to_simulation
         # Info about the input file paths
-        self.inparam_model = self.path_to_simulation + '/input/inparam.model.yaml' # noqa
+        self.inparam_model = self.path_to_simulation + '/input/inparam.model.yaml'
         self.inparam_nr = self.path_to_simulation + '/input/inparam.nr.yaml'
-        self.inparam_output = self.path_to_simulation + '/input/inparam.output.yaml' # noqa
-        self.inparam_source = self.path_to_simulation + '/input/inparam.source.yaml' # noqa
-        self.inparam_advanced = self.path_to_simulation + '/input/inparam.advanced.yaml' # noqa
+        self.inparam_output = self.path_to_simulation + '/input/inparam.output.yaml'
+        self.inparam_source = self.path_to_simulation + '/input/inparam.source.yaml'
+        self.inparam_advanced = self.path_to_simulation + '/input/inparam.advanced.yaml'
         # Info about the structure of the output files
         self.outputs = self._find_outputs()
         # We give a name to the simulation
@@ -57,7 +62,7 @@ class AxiSEM3DOutput:
         # Info about model (currently only for global models)
         if path_to_base_model is None:
             # We search for a bm file in the input folder
-            bm_files = glob.glob(os.path.join(self.path_to_simulation, 'input', '*.bm')) # noqa
+            bm_files = glob.glob(os.path.join(self.path_to_simulation, 'input', '*.bm'))
             # If there are multiple bm files, we take the first one
             if len(bm_files) > 1:
                 print('Multiple bm files were found, we take the first one.')
@@ -128,7 +133,7 @@ class AxiSEM3DOutput:
                 i += 1
             for key in unit_dependent_model_properties:
                 data[key] = [element * 1e3 for element in data[key]]
-            data['DISCONTINUITIES'] = [element * 1e3 for element in data['DISCONTINUITIES']] # noqa
+            data['DISCONTINUITIES'] = [element * 1e3 for element in data['DISCONTINUITIES']]
             data['R'] = data['DISCONTINUITIES']
         else:
             # The bm file is of axisem type
@@ -154,7 +159,7 @@ class AxiSEM3DOutput:
                             for key in data['COLUMNS']:
                                 data['DATA'][key] = []
                         for index, key in enumerate(data['COLUMNS']):
-                            data['DATA'][key].append(float(line.split()[index])) # noqa
+                            data['DATA'][key].append(float(line.split()[index]))
                 i += 1
             data['DISCONTINUITIES'] = [data['DATA']['radius'][0]]
             for i in range(len(data['DATA']['radius']) - 1):
@@ -171,7 +176,7 @@ class AxiSEM3DOutput:
             obspy.core.event.Catalog or None: Catalog object if a single
             catalogue file is found, otherwise None.
         """
-        catalogues = glob.glob(os.path.join(self.path_to_simulation, 'input', '*cat*.xml')) # noqa
+        catalogues = glob.glob(os.path.join(self.path_to_simulation, 'input', '*cat*.xml'))
         if len(catalogues) == 1:
             return read_events(catalogues[0])
         elif len(catalogues) == 0:
@@ -207,7 +212,7 @@ class AxiSEM3DOutput:
                     inv_files = glob.glob(os.path.join(obspyfied_path,
                                                        '*inv.xml'))
 
-                    mseed_files = None if len(mseed_files) == 0 else mseed_files # noqa
+                    mseed_files = None if len(mseed_files) == 0 else mseed_files
                     inv_files = None if len(inv_files) == 0 else inv_files
 
                     obspyfied_data = {'path': obspyfied_path,
@@ -215,7 +220,7 @@ class AxiSEM3DOutput:
                                       'inventory': inv_files}
 
                 outputs[output_type][output_name] = {'path': output_dir,
-                                                     'obspyfied': obspyfied_data} # noqa
+                                                     'obspyfied': obspyfied_data}
 
         return outputs
 
@@ -237,14 +242,14 @@ class AxiSEM3DOutput:
                         event = Event()
                         origin = Origin()
 
-                        origin.time = UTCDateTime("1970-01-01T00:00:00.0Z") # default in obspy # noqa
-                        origin.latitude = items[1]['location']['latitude_longitude'][0] # noqa
-                        origin.longitude = items[1]['location']['latitude_longitude'][1] # noqa
+                        origin.time = UTCDateTime("1970-01-01T00:00:00.0Z") # default in obspy
+                        origin.latitude = items[1]['location']['latitude_longitude'][0]
+                        origin.longitude = items[1]['location']['latitude_longitude'][1]
                         origin.depth = items[1]['location']['depth']
                         origin.depth_type = "operator assigned"
                         origin.evaluation_mode = "manual"
                         origin.evaluation_status = "preliminary"
-                        origin.region = FlinnEngdahl().get_region(origin.longitude, origin.latitude) # noqa
+                        origin.region = FlinnEngdahl().get_region(origin.longitude, origin.latitude)
 
                         if items[1]['mechanism']['type'] == 'FORCE_VECTOR':
                             m_rr = items[1]['mechanism']['data'][0]
@@ -253,7 +258,7 @@ class AxiSEM3DOutput:
                             m_rt = 0
                             m_rp = 0
                             m_tp = 0
-                        elif items[1]['mechanism']['type'] == 'FLUID_PRESSURE': # noqa
+                        elif items[1]['mechanism']['type'] == 'FLUID_PRESSURE':
                             m_rr = items[1]['mechanism']['data'][0]
                             m_tt = 0
                             m_pp = 0

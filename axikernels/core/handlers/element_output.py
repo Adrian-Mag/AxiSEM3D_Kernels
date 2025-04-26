@@ -1,6 +1,6 @@
-from .axisem3d_output import AxiSEM3DOutput
-from ...aux.coordinate_transforms import sph2cart, sph2cart_mpmath, cart2sph, cart2polar, cart2polar_mpmath, cart_geo2cart_src, cart2cyl, cart2cyl_mpmath
-from ...aux.mesher import Mesh, SliceMesh
+from axikernels.core.handlers.axisem3d_output import AxiSEM3DOutput
+from axikernels.aux.coordinate_transforms import sph2cart, sph2cart_mpmath, cart2sph, cart2polar, cart2polar_mpmath, cart_geo2cart_src, cart2cyl, cart2cyl_mpmath
+from axikernels.aux.mesher import Mesh, SliceMesh
 
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation

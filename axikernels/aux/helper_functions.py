@@ -1,5 +1,4 @@
 from obspy.taup import TauPyModel
-import sys
 import numpy as np
 
 def find_range(arr, percentage_min, percentage_max):

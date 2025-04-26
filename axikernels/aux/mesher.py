@@ -2,13 +2,11 @@ from abc import ABC, abstractmethod
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from ..aux.coordinate_transforms import sph2cart, cart2sph
+from axikernels.aux.coordinate_transforms import sph2cart, cart2sph
 from ..aux.helper_functions import find_range
 from mayavi import mlab
 from scipy.spatial import ConvexHull
-from matplotlib import cm
 from scipy import stats
-from tvtk.util import ctf
 import matplotlib
 
 class Mesh(ABC):
