@@ -398,7 +398,7 @@ def newton_inverse(
 
     The ``inside`` flag is set to ``True`` when:
     :math:`-\text{bound} < \xi, \eta < \text{bound}`, where
-    :math:`\text{bound} = 1 + 20 \times \text{tolerance}`.
+    :math:`\text{bound} = 1 + 100 \times \text{tolerance}`.
 
     Parameters
     ----------
@@ -425,7 +425,7 @@ def newton_inverse(
         ``True`` if *converged* is ``True`` and :math:`(\xi, \eta)` lies
         within the element bounds, i.e.
         :math:`-\text{bound} \leq \xi, \eta \leq \text{bound}` where
-        :math:`\text{bound} = 1 + 20 \times \text{tolerance}`.
+        :math:`\text{bound} = 1 + 100 \times \text{tolerance}`.
         Always ``False`` when *converged* is ``False``.
     """
     min_edge = compute_min_edge_length(element_coords_9)
@@ -452,7 +452,12 @@ def newton_inverse(
         xi += delta[0]
         eta += delta[1]
 
-    bound = 1.0 + 20.0 * tolerance
+    # Use a generous bound so surface points at eta≈1+ε are not rejected.
+    # Newton converges to ~1e-9 * min_edge in physical space, which can map
+    # to ~3-4e-8 in reference coordinates for surface elements; a factor of
+    # 100 (bound ≈ 1.0000001) safely covers this without any risk of
+    # picking a wrong element.
+    bound = 1.0 + 100.0 * tolerance
     if not converged:
         inside = False
     else:

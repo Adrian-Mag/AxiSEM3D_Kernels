@@ -442,32 +442,32 @@ class TestNewtonFailure:
 
     def test_strict_boundary_rule(self):
         """
-        Linear element: test the ≤ boundary at ξ = 1 + 20×tol.
+        Linear element: test the ≤ boundary at ξ = 1 + 100×tol.
 
-        With bound = 1 + 20×tol (inclusive):
-          ξ = 1 + 20×tol  → inside=True   (exactly on the boundary)
-          ξ = 1 + 21×tol  → inside=False  (just outside)
+        With bound = 1 + 100×tol (inclusive):
+          ξ = 1 + 100×tol  → inside=True   (exactly on the boundary)
+          ξ = 1 + 101×tol  → inside=False  (just outside)
         """
         coords, xi_nodes, eta_nodes = _make_linear_element()
         tol = 1e-6  # larger tolerance avoids float64 rounding at the boundary
 
-        # --- point exactly at ξ = 1 + 20*tol, η = 0 ---
-        xi_at_bound = 1.0 + 20.0 * tol
+        # --- point exactly at ξ = 1 + 100*tol, η = 0 ---
+        xi_at_bound = 1.0 + 100.0 * tol
         s_at = 3_530_000.0 + 50_000.0 * xi_at_bound
         _, _, conv_in, inside_in = newton_inverse(
             s_at, 250_000.0, coords, xi_nodes, eta_nodes, tolerance=tol
         )
-        assert conv_in, "Newton should converge for ξ = 1 + 20×tol"
-        assert inside_in, "ξ = 1 + 20×tol should be inside (inclusive boundary)"
+        assert conv_in, "Newton should converge for ξ = 1 + 100×tol"
+        assert inside_in, "ξ = 1 + 100×tol should be inside (inclusive boundary)"
 
-        # --- point at ξ = 1 + 21*tol, η = 0 ---
-        xi_outside_bound = 1.0 + 21.0 * tol
+        # --- point at ξ = 1 + 101*tol, η = 0 ---
+        xi_outside_bound = 1.0 + 101.0 * tol
         s_out = 3_530_000.0 + 50_000.0 * xi_outside_bound
         _, _, conv_out, inside_out = newton_inverse(
             s_out, 250_000.0, coords, xi_nodes, eta_nodes, tolerance=tol
         )
-        assert conv_out, "Newton should converge for ξ = 1 + 21×tol"
-        assert not inside_out, "ξ = 1 + 21×tol should be outside"
+        assert conv_out, "Newton should converge for ξ = 1 + 101×tol"
+        assert not inside_out, "ξ = 1 + 101×tol should be outside"
 
 
 # ---------------------------------------------------------------------------

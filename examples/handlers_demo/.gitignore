@@ -3,3 +3,7 @@ sim_run/
 
 # Any stale top-level output directory
 output/
+
+# Local diagnostic/benchmark scripts and their outputs
+benchmark_*.py
+benchmark_*.png
