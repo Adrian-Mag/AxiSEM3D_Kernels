@@ -1,8 +1,12 @@
 from __future__ import annotations
 
 from .axisem3d_output import AxiSEM3DOutput
-from ...aux.coordinate_transforms import sph2cart, sph2cart_mpmath, cart2sph, cart2polar, cart2polar_mpmath, cart_geo2cart_src, cart2cyl, cart2cyl_mpmath
+from ...aux.coordinate_transforms import sph2cart, sph2cart_mpmath, cart2polar, cart_geo2cart_src, cart2cyl, cart2cyl_mpmath
 from ...aux.mesher import Mesh, SliceMesh
+from .isoparametric import (
+    build_element_kdtree, find_containing_elements_batch,
+    interpolation_weights_9node, detect_axial, reference_abscissae
+)
 
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
@@ -14,13 +18,8 @@ import pandas as pd
 import obspy
 from obspy.core.inventory import Inventory, Network, Station, Channel
 from tqdm import tqdm
-import concurrent.futures
-import time
-import warnings
 import plotly.graph_objects as go
 import logging
-import sys
-import matplotlib
 from scipy.interpolate import interp1d
 import netCDF4 as nc
 
@@ -289,16 +288,7 @@ class ElementOutput(AxiSEM3DOutput):
                 # add new network to inventory
                 inv.networks.append(net)
 
-            # Create station (should be unique!)
-            sta = Station(
-                code=station['name'],
-                latitude=station['latitude'],
-                longitude=station['longitude'],
-                elevation=-station['depth'])
-            net.stations.append(sta)
-
-            # Create the channels
-            # here we must find in which element group is this station located
+            # Determine which element group this station belongs to
             rad = self.Domain_Radius - station['depth']
             lat = np.deg2rad(station['latitude'])
             lon = np.deg2rad(station['longitude'])
@@ -307,10 +297,23 @@ class ElementOutput(AxiSEM3DOutput):
             point = sph2cart(point)
             point = cart2cyl(cart_geo2cart_src(points=point,
                                                rotation_matrix=self._rotation_matrix)) # noqa
-            point = cart2polar(point[0, 0], point[0, 1])
-            point[0, 1] += np.pi/2
-            element_group = self._separate_by_inplane_domain(point.reshape(1, 2)) # noqa
+            s_val, z_val = float(point[0, 0]), float(point[0, 1])
+            r_val = np.sqrt(s_val**2 + z_val**2)
+            theta_val = np.arccos(np.clip(z_val / r_val, -1.0, 1.0)) if r_val > 0 else 0.0
+            inplane_point = np.array([[r_val, theta_val]])
+            element_group = self._separate_by_inplane_domain(inplane_point)
+            if element_group[0] == -1:
+                logging.warning(f"Station {station['name']} not in any element group domain, skipping.")  # noqa
+                continue
             key = self.element_groups[element_group[0]]
+
+            # Create station (should be unique!) — only after domain lookup succeeds
+            sta = Station(
+                code=station['name'],
+                latitude=station['latitude'],
+                longitude=station['longitude'],
+                elevation=-station['depth'])
+            net.stations.append(sta)
             for channel in self.element_groups_info[key]['metadata']['detailed_channels']: # noqa
                 cha = Channel(
                     code=channel,
@@ -345,9 +348,17 @@ class ElementOutput(AxiSEM3DOutput):
         Returns:
             obspy.stream: stream
         """
+        # Fetch time axis from element group metadata
+        first_key = self.element_groups[0]
+        data_time = self.element_groups_info[first_key]['metadata']['data_time']
+
         # Get time slices from time limits
         if time_limits is not None:
-            time_slices = np.where((self.data_time >= time_limits[0]) & (self.data_time <= time_limits[1]))
+            time_slices = np.flatnonzero((data_time >= time_limits[0]) & (data_time <= time_limits[1]))
+            if len(time_slices) == 0:
+                raise ValueError(
+                    f"time_limits [{time_limits[0]}, {time_limits[1]}] "
+                    f"select no samples from data_time [{data_time[0]}, {data_time[-1]}]")
         else:
             time_slices = None
 
@@ -378,10 +389,9 @@ class ElementOutput(AxiSEM3DOutput):
                                    time_slices=time_slices)
         # Construct metadata
         stream = obspy.Stream()
-        first_key = self.element_groups[0]
-        data_time = self.element_groups_info[first_key]['metadata']['data_time']
         delta = data_time[1] - data_time[0]
-        npts = len(data_time)
+        selected_time = data_time if time_slices is None else data_time[time_slices]
+        npts = len(selected_time)
 
         for index, station in stations.iterrows():
             network = station['network']
@@ -395,7 +405,7 @@ class ElementOutput(AxiSEM3DOutput):
                 trace.stats.station = station_name
                 trace.stats.location = ''
                 trace.stats.channel = chn
-                trace.stats.starttime = obspy.UTCDateTime("1970-01-01T00:00:00.0Z") + data_time[0]
+                trace.stats.starttime = obspy.UTCDateTime("1970-01-01T00:00:00.0Z") + selected_time[0]
                 stream.append(trace)
 
         return stream
@@ -431,7 +441,11 @@ class ElementOutput(AxiSEM3DOutput):
         first_key = self.element_groups[0]
         data_time = self.element_groups_info[first_key]['metadata']['data_time']
         if time_limits is not None:
-            time_slices = np.where((data_time >= time_limits[0]) & (data_time <= time_limits[1]))
+            time_slices = np.flatnonzero((data_time >= time_limits[0]) & (data_time <= time_limits[1]))
+            if len(time_slices) == 0:
+                raise ValueError(
+                    f"time_limits [{time_limits[0]}, {time_limits[1]}] "
+                    f"select no samples from data_time [{data_time[0]}, {data_time[-1]}]")
         else:
             time_slices = None
 
@@ -447,10 +461,11 @@ class ElementOutput(AxiSEM3DOutput):
                                     channels=channels,
                                     time_slices=time_slices,
                                     in_deg=coord_in_deg)
+        selected_time = data_time if time_slices is None else data_time[time_slices]
         for point_index in range(len(points)):
             # Construct metadata
             delta = data_time[1] - data_time[0]
-            npts = len(data_time)
+            npts = len(selected_time)
             network = str(np.random.randint(0, 100))
             station_name = str(np.random.randint(0, 100))
 
@@ -463,7 +478,7 @@ class ElementOutput(AxiSEM3DOutput):
                 trace.stats.station = station_name
                 trace.stats.location = ''
                 trace.stats.channel = chn
-                trace.stats.starttime = obspy.UTCDateTime("1970-01-01T00:00:00.0Z") + data_time[0]
+                trace.stats.starttime = obspy.UTCDateTime("1970-01-01T00:00:00.0Z") + selected_time[0]
                 stream.append(trace)
 
         return stream
@@ -501,7 +516,7 @@ class ElementOutput(AxiSEM3DOutput):
             ]['metadata']['data_time']))
 
         # Initialize the final result
-        final_result = np.ones((len(points), len(channels), len(time_slices)))
+        final_result = np.full((len(points), len(channels), len(time_slices)), np.nan)
 
         # Compute the inplane coordinates
         """ # Interpolate all groups
@@ -609,7 +624,10 @@ class ElementOutput(AxiSEM3DOutput):
         group_mapping = self._separate_by_inplane_domain(inplane_points)
         group_mapping_to_material = [0 if self.element_groups_info[group]['wavefields']['medium'] == 'SOLID'
                                         else 1 for group in self.element_groups]
-        material_mapping = np.array([group_mapping_to_material[group] for group in group_mapping])
+        material_mapping = np.array([
+            group_mapping_to_material[group] if group >= 0 else -1
+            for group in group_mapping
+        ])
         return material_mapping
 
     def _project_on_inplane(self, points: np.ndarray, degrees: bool = True,
@@ -630,10 +648,17 @@ class ElementOutput(AxiSEM3DOutput):
         # Convert the string representation to a NumPy array of floats (I think
         # this was to go from mpmath to numpy format ...)
         points_copy = np.vectorize(lambda x: float(str(x)))(points_copy)
-        # We add pi/2 beacause by default cart2polar sets theta to zero along
-        # the s axis, but in the inparam.output theta is set to 0 at the z axis
-        inplane_points = cart2polar_mpmath(points_copy[:, 0], points_copy[:, 1])
-        inplane_points[:, 1] += np.pi/2
+        # Compute colatitude (theta) as angle from z-axis using arccos(z/r).
+        # This matches AxiSEM3D's horizontal_range convention (theta=0 at north pole).
+        # The previous approach (arctan2 + offset) was incorrect: it produced
+        # pi - colatitude instead of colatitude.
+        s = points_copy[:, 0].astype(float)
+        z = points_copy[:, 1].astype(float)
+        r = np.sqrt(s**2 + z**2)
+        # Use safe division to avoid divide-by-zero warnings at r=0
+        safe_r = np.where(r > 0, r, 1.0)
+        theta = np.where(r > 0, np.arccos(np.clip(z / safe_r, -1.0, 1.0)), 0.0)
+        inplane_points = np.column_stack((r, theta))
 
         return points_copy, inplane_points
 
@@ -644,14 +669,11 @@ class ElementOutput(AxiSEM3DOutput):
         # All points must be from the same element group!!!
 
         # Initialize the final result
-        final_result = np.ones((len(points),len(channel_slices),len(time_slices)))
+        final_result = np.full((len(points), len(channel_slices), len(time_slices)), np.nan)
 
-        # Get lagrange order
-        if self.element_groups_info[group]['inplane']['GLL_points_one_edge'] == [0,2,4] and \
-            self.element_groups_info[group]['inplane']['edge_dimension'] == 'BOTH':
-            lagrange_order = 3
-            logging.info('Using lagrange order 3.')
-        else:
+        # Validate output type
+        if not (self.element_groups_info[group]['inplane']['GLL_points_one_edge'] == [0,2,4] and
+                self.element_groups_info[group]['inplane']['edge_dimension'] == 'BOTH'):
             logging.error("No implementation for this output type.")
             raise NotImplementedError("No implementation for this output type.")
 
@@ -673,17 +695,28 @@ class ElementOutput(AxiSEM3DOutput):
         unique_points = np.array(unique_points)
         logging.info('Only {}% of the points have unique inplane coords.'.format(100*len(unique_points)/len(points)))
 
-        # Create element map for the unique points
-        element_centers = self.element_groups_info[group]['metadata']['list_element_coords'][:, 4, :]  # Assuming the center point is at index 4
-        differences = element_centers[:, np.newaxis] - unique_points[:,0:2]
-        distances = np.linalg.norm(differences, axis=2)
-        elements_map = np.argmin(distances, axis=0)
+        # Create element map for the unique points using KDTree + Newton containment
+        all_element_coords = self.element_groups_info[group]['metadata']['list_element_coords']
+        kdtree, _ = build_element_kdtree(all_element_coords)
+        unique_sz = unique_points[:, 0:2]
+        elements_map, xi_arr, eta_arr = find_containing_elements_batch(unique_sz, all_element_coords, kdtree)
         logging.info('Created element map')
+
+        # Build reference coordinates dict for each unique inplane key
+        ref_coords_dict = {}
+        for i, point in enumerate(unique_points):
+            if elements_map[i] == -1:
+                continue  # unmatched point will keep NaN sentinel
+            s_key, z_key, _ = np.around(point, decimals=decimals)
+            key = (s_key, z_key)
+            ref_coords_dict[key] = (xi_arr[i], eta_arr[i])
 
         # Create elements_dict
         elements_dict = {}
         elements_list = []
         for element, unique_point in zip(elements_map, unique_points):
+            if element == -1:
+                continue  # unmatched point, stays as NaN sentinel
             key = (np.around(unique_point[0], decimals=decimals), np.around(unique_point[1], decimals=decimals))
             if element in elements_dict:
                 elements_dict[element][key] = unique_points_dict[key]
@@ -721,22 +754,6 @@ class ElementOutput(AxiSEM3DOutput):
                 elements = list(main_dict[file][nag].keys())
                 elements_in_file_nag = [self.element_groups_info[group]['metadata']['list_element_na'][element][3] for element in elements]
 
-                # Find problematic elements
-                problematic_elements = [] # contains the indices of the problematic elements in the local element list
-                proof = []
-                for index, element in enumerate(self.element_groups_info[group]['metadata']['list_element_coords'][elements]):
-                    s = element[:,0]
-                    z = element[:,1]
-                    points = cart2polar(s,z)
-                    r = points[[0,1,2],0]
-                    theta = points[[0,3,6],1]
-                    r_grid, theta_grid = np.meshgrid(r, theta)
-                    expected_points = np.column_stack((r_grid.ravel(), theta_grid.ravel()))
-                    if not np.allclose(points, expected_points, rtol=1e-6):
-                        problematic_elements.append(index)
-                        proof.append(points)
-                #self.plot_mesh(np.array(elements)[problematic_elements])
-
                 # Read the data from the file
                 logging.info('Loading raw data.')
                 data = self.element_groups_info[group]['metadata']['files'][file]['data_wave__NaG=%d' % nag][elements_in_file_nag][:,:,:,channel_slices,time_slices].data
@@ -744,96 +761,37 @@ class ElementOutput(AxiSEM3DOutput):
                 # Data expansion for unique inplane points
                 logging.info('Expanding data to all unique inplane points.')
                 in_element_repetitions = [len(inplane_points) for inplane_points in main_dict[file][nag].values()]
-                # may delete later
-                map_of_problematique = np.zeros(len(elements))
-                map_of_problematique[problematic_elements] = 1
                 if max(in_element_repetitions) == 1:
                     # This is the case where in each element there is only one
                     # inplane point where we need to run the inplane
                     # interpolation
-                    expanded_data = data # no expansion occurs in this case
-                    expanded_map_of_problematique = map_of_problematique
+                    expanded_data = data  # no expansion occurs in this case
                 else:
                     # If there are multiple unique inplane points in some
                     # elements, we need to expand the data
                     final_shape = (np.sum(np.array(in_element_repetitions)),) + data.shape[1:]
                     expanded_data = np.empty(final_shape)
-                    expanded_map_of_problematique = np.zeros(final_shape[0])
                     expanded_index = 0
                     for index, repetitions in enumerate(in_element_repetitions):
                         if repetitions == 1:
                             expanded_data[expanded_index] = data[index]
-                            expanded_map_of_problematique[expanded_index] = map_of_problematique[index]
                             expanded_index += 1
                         else:
                             for _ in range(repetitions):
                                 expanded_data[expanded_index] = data[index]
-                                expanded_map_of_problematique[expanded_index] = map_of_problematique[index]
                                 expanded_index += 1
-                map_of_problematique = np.where(expanded_map_of_problematique == 1)[0]
 
-                # Find the inplane coords for each element
-                logging.info('Get unique inplane coords')
-                inplane_coords = []
-                for sub_dict in main_dict[file][nag].values():
-                    for key in sub_dict.keys():
-                        inplane_coords.append(key)
-
-                # Transform to polar coords
-                s, z = zip(*inplane_coords)
-                s = np.array(s)
-                z = np.array(z)
-                inplane_coords = cart2polar(s, z)
-
-                # Find the r and theta vectors for each element and construct
-                # lagrange interpolation matrix
-
-                # Expand coords of element GLL points to unique inplane points
-                logging.info('Expand element coords.')
-                points_of_interest = self.element_groups_info[group]['metadata']['list_element_coords'][elements][:,[0,1,2,3,6],:]
-                final_shape = (np.sum(np.array(in_element_repetitions)),) +  points_of_interest.shape[1:]
-                expanded_points_of_interest = np.empty(final_shape)
-                expanded_index = 0
-                for index, repetitions in enumerate(in_element_repetitions):
-                    if repetitions == 1:
-                        expanded_points_of_interest[expanded_index] = points_of_interest[index]
-                        expanded_index += 1
-                    else:
-                        for _ in range(repetitions):
-                            expanded_points_of_interest[expanded_index] = points_of_interest[index]
-                            expanded_index += 1
-                points_of_interest = expanded_points_of_interest
-                # remove the points of interest located in problematique elements
-                points_of_interest = np.delete(points_of_interest, map_of_problematique, axis=0)
-                good_inplane_coords = np.delete(inplane_coords, map_of_problematique, axis=0)
-                original_shape = points_of_interest.shape
-                points_of_interest = points_of_interest.reshape((points_of_interest.shape[0]*points_of_interest.shape[1], 2))
-                points_of_interest = cart2polar(points_of_interest[:,0], points_of_interest[:,1]).reshape(original_shape)
-                GLL_rads = points_of_interest[:,[0,1,2],[0]]
-                GLL_thetas = points_of_interest[:,[2,3,4],[1]]
-
-                # Compute interpolation weights (LIM)
+                # Compute isoparametric interpolation weights (LIM)
                 logging.info('Compute LIM')
-                lr = np.array([
-                    self._lagrange(good_inplane_coords[:,0], GLL_rads, i, lagrange_order)
-                    for i in range(lagrange_order)]).transpose()
-                ltheta = np.array([
-                    self._lagrange(good_inplane_coords[:,1], GLL_thetas, i, lagrange_order)
-                    for i in range(lagrange_order)]).transpose()
-                LIM = np.array([
-                    np.outer(ltheta_i, lr_i).flatten()
-                    for ltheta_i, lr_i in zip(ltheta, lr)])
-
-                # Manually add back into LIM some improvised weights at the
-                # locations within map_of_problematique
-                if len(LIM) == 0:
-                    LIM = np.concatenate((LIM,np.array([0,0,0,0,1,0,0,0,0])), axis=0)
-                    LIM = LIM.reshape((1,len(LIM)))
-                    for location in map_of_problematique[1:]:
-                        LIM = np.insert(LIM, location, np.array([0,0,0,0,1,0,0,0,0]), axis=0)
-                else:
-                    for location in map_of_problematique:
-                        LIM = np.insert(LIM, location, np.array([0,0,0,0,1,0,0,0,0]), axis=0)
+                LIM_rows = []
+                for element, sub_dict in zip(elements, main_dict[file][nag].values()):
+                    axial = detect_axial(all_element_coords[element])
+                    xi_nodes, eta_nodes = reference_abscissae(axial)
+                    for key in sub_dict.keys():
+                        xi, eta = ref_coords_dict[key]
+                        weights = interpolation_weights_9node(xi, eta, xi_nodes, eta_nodes)
+                        LIM_rows.append(weights)
+                LIM = np.array(LIM_rows)  # shape: (sum(in_element_repetitions), 9)
 
                 # Interpolate
                 logging.info('Inplane interpolate')
@@ -972,8 +930,7 @@ class ElementOutput(AxiSEM3DOutput):
         all_data_time_same = all(np.array_equal(data_time_arrays[0], arr)
                                  for arr in data_time_arrays[1:])
         if not all_data_time_same:
-            logging.error('Not all element groups have the same time axis.')
-            sys.exit()
+            raise ValueError('Not all element groups have the same time axis.')
         data_time = data_time_arrays[0]
         no_frames = frame_rate*video_duration
         time_slices = np.round(np.linspace(0, len(data_time) - 1, no_frames)).astype(int)
@@ -1092,23 +1049,6 @@ class ElementOutput(AxiSEM3DOutput):
         ani.save(self.path_to_elements_output + '/' + name + '_animation.mp4',
                  writer='ffmpeg')
 
-    def _point_not_in_output_domain(self, point: list) -> bool:
-        # The point must be given as [rad, lat, lon] in radians and in the
-        # geographical frame and spherical coords
-
-        # Transfrom point into spherical coords in the source frame
-        rad, lat, _ = cart2sph(cart_geo2cart_src(sph2cart(point),
-                                                 rotation_matrix=self._rotation_matrix)) # noqa
-        # In the inparam.output the angle for the horizontal range is actually
-        # the colatitude in the source frame therefore we must transform the
-        # latitude to colatitude
-        colat = np.pi/2 - lat
-        if self.vertical_range[0] > rad or rad > self.vertical_range[1] \
-                or colat < self.horizontal_range[0] or colat > self.horizontal_range[1]: # noqa
-            return True
-        else:
-            return False
-
     def _read_element_metadata(self, element_group_name: str):
         """Reads a folder that contains the element output files from Axisem3D
         and outputs the metadata needed to access any data point from the mesh.
@@ -1207,25 +1147,6 @@ class ElementOutput(AxiSEM3DOutput):
             list_element_coords, dict_list_element, \
             nc_files, elements_index_limits, \
             detailed_channels
-
-    def _lagrange(self, evaluation_points, GLL_points, i, order):
-        """ Lagrange function implementation
-        """
-        value = 1
-        for j in range(order):
-            if i != j:
-                try:
-                    with warnings.catch_warnings(record=True) as w:
-                        value *= (evaluation_points - GLL_points[:, j]) / \
-                                 (GLL_points[:, i] - GLL_points[:, j])
-                    if w:
-                        # A warning occurred, print it along with the traceback
-                        warning = w[-1]
-                        print(f"Warning: {warning.message}")
-                except Exception as e:
-                    # In case of any exception, print the error message
-                    print(f"Error: {str(e)}")
-        return value
 
     def _find_range(self, arr, percentage_min, percentage_max):
         """

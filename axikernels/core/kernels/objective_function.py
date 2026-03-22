@@ -18,15 +18,22 @@ import subprocess
 class ObjectiveFunction(ABC):
     def __init__(self, forward_data: ElementOutput,
                  real_data: ObspyfiedOutput = None,
-                 backward_simulation: ElementOutput = None):
+                 backward_simulation: ElementOutput = None,
+                 interactive: bool = True):
 
         # The objective function can be initialized with only the forward data
         # and use its methods to compute the backward wavefield
         self.forward_data = forward_data
+        self.real_data = real_data
         self.backward_simulation = backward_simulation
+        self.interactive = interactive
 
         # Kernel
         self.kernel = None
+
+        # Window attributes (set by compute_backward_field)
+        self.window_left = None
+        self.window_right = None
 
     @abstractmethod
     def compute_backward_field(self, station: str, network: str,
@@ -74,14 +81,17 @@ class ObjectiveFunction(ABC):
             if not os.path.exists(destination_directory):
                 os.makedirs(destination_directory)
             else:
-                ans = input('Backward directory already exists.'
-                            ' Overwrite it? (y/n): ')
+                if self.interactive:
+                    ans = input('Backward directory already exists.'
+                                ' Overwrite it? (y/n): ')
+                else:
+                    print('Backward directory already exists. Overwriting.')
+                    ans = 'y'
                 if ans == 'y':
                     shutil.rmtree(destination_directory)
                     os.makedirs(destination_directory)
-                else:
-                    ans = input('Create a new backard directory? (y/n): ')
-                    if ans == 'y':
+                elif self.interactive:
+                    if input('Create a new backard directory? (y/n): ') == 'y':
                         dir_name = input('Enter the new directory name: ')
                         destination_directory = os.path.join(
                             os.path.dirname(source_directory),
@@ -114,8 +124,9 @@ class ObjectiveFunction(ABC):
 class XObjectiveFunction(ObjectiveFunction):
     def __init__(self, forward_data: ElementOutput,
                  real_data: ObspyfiedOutput = None,
-                 backward_simulation: ElementOutput = None):
-        super().__init__(forward_data, real_data, backward_simulation)
+                 backward_simulation: ElementOutput = None,
+                 interactive: bool = True):
+        super().__init__(forward_data, real_data, backward_simulation, interactive)
 
     def compute_backward_field(self, tau: float, receiver_point: list,
                                window: list, channel: str, cores: int = None):
@@ -128,39 +139,36 @@ class XObjectiveFunction(ObjectiveFunction):
 
         #  Create the necessary directory structure and
         # files
-        ans = input('Construct backward simulation? (y/n): ')
-        if ans == 'y':
-            self._make_backward_directory()
-
-            # Compute and save adjoint source
-            self._compute_adjoint_STF(tau, receiver_point,
-                                    window, channel)
-
-            # Modify the inparam.source file
-            self._change_inparam_source(receiver_point)
-
-            # Run the backward simulation
-            self._run_backward_simulation(cores)
-
-            # Save the backward data as property of the objective object
-            self.backward_simulation = ElementOutput(
-                os.path.join(self._backward_directory, 'output/elements')
-                )
-        else:
+        if self.interactive and input('Construct backward simulation? (y/n): ') != 'y':
             return
+
+        self._make_backward_directory()
+
+        # Compute and save adjoint source
+        self._compute_adjoint_STF(tau, receiver_point,
+                                window, channel)
+
+        # Modify the inparam.source file
+        self._change_inparam_source(receiver_point)
+
+        # Run the backward simulation
+        self._run_backward_simulation(cores)
+
+        # Save the backward data as property of the objective object
+        self.backward_simulation = ElementOutput(
+            os.path.join(self._backward_directory, 'output/elements')
+            )
 
     def _run_backward_simulation(self, cores):
-        ans = input('Run the backward simulation? (y/n): ')
-        if ans == 'y':
-            if cores is None:
-                cores = os.cpu_count()
-            command = f"mpirun -np {cores} axisem3d"
-
-            process = subprocess.Popen(command, shell=True,
-                                    cwd=self._backward_directory)
-            output, error = process.communicate()
-        else:
+        if self.interactive and input('Run the backward simulation? (y/n): ') != 'y':
             return
+        if cores is None:
+            cores = os.cpu_count()
+        command = f"mpirun -np {cores} axisem3d"
+
+        process = subprocess.Popen(command, shell=True,
+                                cwd=self._backward_directory)
+        output, error = process.communicate()
 
     def _change_inparam_source(self, reciever_point: list):
         yaml = YAML()
@@ -188,7 +196,7 @@ class XObjectiveFunction(ObjectiveFunction):
                                'input/inparam.source.yaml'), 'w') as file:
             yaml.dump(adjoint_source, file)
 
-    def _compute_RT_totation_matrix(self, receiver_point):
+    def _compute_RT_rotation_matrix(self, receiver_point):
         receiver_lat = np.deg2rad(receiver_point[1])
         receciver_lon = np.deg2rad(receiver_point[2])
         event_lat = np.deg2rad(self.forward_data.source_lat)
@@ -253,7 +261,7 @@ class XObjectiveFunction(ObjectiveFunction):
         # Right now the velocity is in the ZRT coordinate system of the
         # receiver, but we want it in the ZRT coordinate determined by the
         # north pole, so we must rotate the RT coordinates
-        dfwdt[0:2] = np.dot(self._compute_RT_totation_matrix(receiver_point), dfwdt[0:2])
+        dfwdt[0:2] = np.dot(self._compute_RT_rotation_matrix(receiver_point), dfwdt[0:2])
         # Now pick the observation channel
         # Compute normalization factor
         mag = integrate.simpson(np.sum(dfwdt * dfwdt, axis=0),
@@ -274,11 +282,11 @@ class XObjectiveFunction(ObjectiveFunction):
             axs[index].set_xlabel('Time')
             axs[index].set_ylabel('Amplitude')
             axs[index].set_title(channel)
-        plt.show()
+        if self.interactive:
+            plt.show()
 
         # See if you want to save the STF or not
-        ans = input('Save the STF? (y/n): ')
-        if ans == 'y':
+        if not self.interactive or input('Save the STF? (y/n): ') == 'y':
             # Save residue as STF.txt file ready to be given to AxiSEM3D
             directory = os.path.join(self._backward_directory, 'input', 'STF')
             if not os.path.exists(directory):
@@ -287,16 +295,16 @@ class XObjectiveFunction(ObjectiveFunction):
                 self._save_STF(directory, new_time, STF, channels)
             else:
                 print("Directory already exists:", directory)
-                ans = input('Overwrite the existing data [y/n]: ')
-                if ans == 'y':
+                if not self.interactive or input('Overwrite the existing data [y/n]: ') == 'y':
                     self._save_STF(directory, new_time, STF, channels)
 
 
 class L2ObjectiveFunction(ObjectiveFunction):
     def __init__(self, forward_data: ElementOutput,
                  real_data: ObspyfiedOutput = None,
-                 backward_simulation: ElementOutput = None):
-        super().__init__(forward_data, real_data, backward_simulation)
+                 backward_simulation: ElementOutput = None,
+                 interactive: bool = True):
+        super().__init__(forward_data, real_data, backward_simulation, interactive)
 
         # Source data
         self.source_depth = forward_data.source_depth
@@ -306,6 +314,8 @@ class L2ObjectiveFunction(ObjectiveFunction):
     def compute_backward_field(self, station: str, network: str, location: str,
                                real_channels: str, window_left: float,
                                window_right: float):
+        self.window_left = window_left
+        self.window_right = window_right
 
         # For the forward channels need to specify wether [UZ, UR, UT] or [UZ,
         # UE, UN], etc which AxiSEM3D type was used for outputting the
@@ -322,10 +332,12 @@ class L2ObjectiveFunction(ObjectiveFunction):
                                   window_left, window_right)
 
         # Modify the inparam.source file
-        input('Modify the inparam.source file manually then press enter.')
+        if self.interactive:
+            input('Modify the inparam.source file manually then press enter.')
 
         # Run the backward simulation
-        input('Run the backward simulation then press enter.')
+        if self.interactive:
+            input('Run the backward simulation then press enter.')
 
         # Save the backward data as property of the objective object
         self.backward_simulation = ElementOutput(
@@ -408,16 +420,18 @@ class L2ObjectiveFunction(ObjectiveFunction):
 
         # Put the station coords in geographic spherical [rad, lat, lon] in
         # degrees
-        sta_rad = self.forward_data.Earth_Radius - station_depth
+        sta_rad = self.forward_data.Domain_Radius - station_depth
         point = [sta_rad, station_latitude, station_longitude]
-        # Get the forward data as a stream at that point
-        stream_forward_data = self.forward_data.stream(point, channels=['U'],
-                                                       coord_in_deg=True)
         # We again assume all elements have the same time axis
         first_group = next(iter(self.forward_data.element_groups_info))
         forward_time = self.forward_data.element_groups_info[first_group]['metadata']['data_time'] # noqa
         dt_forward = forward_time[1] - forward_time[0]
         channel_type = self.forward_data.element_groups_info[first_group]['wavefields']['coordinate_frame'] # noqa
+        # Get the forward data as a stream at that point
+        channels = ['U' + ch for ch in channel_type]
+        stream_forward_data = self.forward_data.stream(point,
+                                                       channels=channels,
+                                                       coord_in_deg=True)
 
         # Find the master time (minmax/maxmin)
         t_max = min(real_data_time[-1], forward_time[-1])
@@ -469,10 +483,10 @@ class L2ObjectiveFunction(ObjectiveFunction):
         STF = residue
 
         # Plot
-        plt.show()
+        if self.interactive:
+            plt.show()
 
-        ans = input('Save the STF? (y/n): ')
-        if ans == 'y':
+        if not self.interactive or input('Save the STF? (y/n): ') == 'y':
             # Save residue as STF.txt file ready to be given to AxiSEM3D
             directory = os.path.join(self._backward_directory, 'input', 'STF')
             if not os.path.exists(directory):
@@ -482,8 +496,7 @@ class L2ObjectiveFunction(ObjectiveFunction):
                                STF, channel_type)
             else:
                 print("Directory already exists:", directory)
-                ans = input('Overwrite the existing data [y/n]: ')
-                if ans == 'y':
+                if not self.interactive or input('Overwrite the existing data [y/n]: ') == 'y':
                     self._save_STF(directory, transformed_windowed_master_time,
                                    STF, channel_type)
 
@@ -521,12 +534,16 @@ class L2ObjectiveFunction(ObjectiveFunction):
         station_longitude = inventory[0][0].longitude
 
         # Load synthetic data
-        sta_rad = self.forward_data.Earth_Radius - station_depth
+        sta_rad = self.forward_data.Domain_Radius - station_depth
         point = [sta_rad, station_latitude, station_longitude]
-        stream_forward_data = self.forward_data.stream(point)
-        forward_time = self.forward_data.data_time
+        first_group = next(iter(self.forward_data.element_groups_info))
+        forward_time = self.forward_data.element_groups_info[first_group]['metadata']['data_time']  # noqa
         dt_forward = forward_time[1] - forward_time[0]
-        channel_type = self.forward_data.coordinate_frame
+        channel_type = self.forward_data.element_groups_info[first_group]['wavefields']['coordinate_frame']  # noqa
+        channels = ['U' + ch for ch in channel_type]
+        stream_forward_data = self.forward_data.stream(point,
+                                                       channels=channels,
+                                                       coord_in_deg=True)
 
         # Compute residue
         t_max = min(real_data_time[-1], forward_time[-1])

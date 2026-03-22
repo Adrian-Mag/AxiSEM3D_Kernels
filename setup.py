@@ -14,10 +14,25 @@ setup(
     package_data={
         'axikernels': ['examples/data/*'],
     },
+    install_requires=[
+        'numpy',
+        'obspy',
+        'netCDF4',
+        'pyyaml',
+        'pandas',
+        'xarray',
+        'tqdm',
+        'matplotlib',
+        'plotly',
+        'mpmath',
+        'scipy',
+        'ruamel.yaml',
+        'tables',
+    ],
     classifiers=[
         'Programming Language :: Python :: 3',
         'License :: OSI Approved :: MIT License',
         'Operating System :: OS Independent',
     ],
-    python_requires='>=3.6',
+    python_requires='>=3.9',
 )

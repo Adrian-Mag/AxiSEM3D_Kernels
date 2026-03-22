@@ -295,10 +295,10 @@ def cart2cyl(points: np.ndarray) -> np.ndarray:
             - z (float): z-coordinate.
 
     Returns:
-        np.ndarray: Array containing the cylindrical coordinates [s, phi, z].
+        np.ndarray: Array containing the cylindrical coordinates [s, z, phi].
             - s (float): Distance from the cylindrical axis.
-            - phi (float): Angle in radians measured from the positive x-axis.
             - z (float): Distance along the cylindrical axis.
+            - phi (float): Angle in radians measured from the positive x-axis.
 
     Raises:
         None.
@@ -324,10 +324,10 @@ def cart2cyl_mpmath(points: np.ndarray, precision=64) -> np.ndarray:
             - z (float): z-coordinate.
 
     Returns:
-        np.ndarray: Array containing the cylindrical coordinates [s, phi, z].
+        np.ndarray: Array containing the cylindrical coordinates [s, z, phi].
             - s (float): Distance from the cylindrical axis.
-            - phi (float): Angle in radians measured from the positive x-axis.
             - z (float): Distance along the cylindrical axis.
+            - phi (float): Angle in radians measured from the positive x-axis.
 
     Raises:
         None.

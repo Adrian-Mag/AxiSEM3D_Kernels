@@ -1,0 +1,13 @@
+numpy
+obspy
+netCDF4
+pyyaml
+pandas
+xarray
+tqdm
+matplotlib
+plotly
+mpmath
+scipy
+ruamel.yaml
+tables

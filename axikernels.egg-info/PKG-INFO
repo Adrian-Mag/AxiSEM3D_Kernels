@@ -1,4 +1,4 @@
-Metadata-Version: 2.1
+Metadata-Version: 2.4
 Name: axikernels
 Version: 0.1
 Summary: A Python package for handling Axisem3D output
@@ -7,5 +7,25 @@ Author-email: marin.mag@stx.ox.ac.uk
 Classifier: Programming Language :: Python :: 3
 Classifier: License :: OSI Approved :: MIT License
 Classifier: Operating System :: OS Independent
-Requires-Python: >=3.6
+Requires-Python: >=3.9
 License-File: LICENSE
+Requires-Dist: numpy
+Requires-Dist: obspy
+Requires-Dist: netCDF4
+Requires-Dist: pyyaml
+Requires-Dist: pandas
+Requires-Dist: xarray
+Requires-Dist: tqdm
+Requires-Dist: matplotlib
+Requires-Dist: plotly
+Requires-Dist: mpmath
+Requires-Dist: scipy
+Requires-Dist: ruamel.yaml
+Requires-Dist: tables
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: license-file
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary

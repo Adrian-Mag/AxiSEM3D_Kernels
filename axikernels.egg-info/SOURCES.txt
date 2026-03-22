@@ -5,6 +5,7 @@ axikernels/__init__.py
 axikernels.egg-info/PKG-INFO
 axikernels.egg-info/SOURCES.txt
 axikernels.egg-info/dependency_links.txt
+axikernels.egg-info/requires.txt
 axikernels.egg-info/top_level.txt
 axikernels/aux/__init__.py
 axikernels/aux/coordinate_transforms.py
