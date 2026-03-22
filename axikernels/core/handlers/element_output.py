@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from .axisem3d_output import AxiSEM3DOutput
 from ...aux.coordinate_transforms import sph2cart, sph2cart_mpmath, cart2sph, cart2polar, cart2polar_mpmath, cart_geo2cart_src, cart2cyl, cart2cyl_mpmath
 from ...aux.mesher import Mesh, SliceMesh
@@ -263,7 +265,7 @@ class ElementOutput(AxiSEM3DOutput):
         # Open station file
         stations = (pd.read_csv(path_to_station_file,
                     sep=r'\s+',
-                    header=0,
+                    header=None,
                     names=["name",
                            "network",
                            "latitude",
@@ -352,7 +354,7 @@ class ElementOutput(AxiSEM3DOutput):
         # Open station file
         stations = (pd.read_csv(path_to_station_file,
                     sep=r'\s+',
-                    header=0,
+                    header=None,
                     names=["name",
                            "network",
                            "latitude",
@@ -388,7 +390,7 @@ class ElementOutput(AxiSEM3DOutput):
                 # form the traces at the channel level
                 trace = obspy.Trace(wave_data[index][chn_index])
                 trace.stats.delta = delta
-                trace.stats.ntps = npts
+                trace.stats.npts = npts
                 trace.stats.network = network
                 trace.stats.station = station_name
                 trace.stats.location = ''
@@ -456,7 +458,7 @@ class ElementOutput(AxiSEM3DOutput):
                 # form the traces at the channel level
                 trace = obspy.Trace(wave_data[point_index][chn_index])
                 trace.stats.delta = delta
-                trace.stats.ntps = npts
+                trace.stats.npts = npts
                 trace.stats.network = network
                 trace.stats.station = station_name
                 trace.stats.location = ''

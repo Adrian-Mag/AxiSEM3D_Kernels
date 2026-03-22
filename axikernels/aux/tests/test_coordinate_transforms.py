@@ -1,9 +1,9 @@
 import numpy as np
 from numpy.testing import assert_allclose
 from math import pi
-import unittest 
+import unittest
 
-from ..coordinate_transforms import sph2cart, cart2sph, sph2cyl, cart_geo2cart_src, cart2polar, cart2cyl
+from ..coordinate_transforms import sph2cart, cart2sph, sph2cyl, cart_geo2cart_src, cart2polar, cart2cyl, sph2cart_mpmath, cart2sph_mpmath
 
 
 class TestSph2Cart(unittest.TestCase):
@@ -26,7 +26,7 @@ class TestSph2Cart(unittest.TestCase):
             with self.subTest(point=point):
                 result = sph2cart(point)
                 np.testing.assert_allclose(result, expected_result, atol=1e-6)
-    
+
     def test_sph2cart_negative_radius(self):
         point = [-1, np.pi/4, np.pi/4]  # Negative radius
         with self.assertRaises(ValueError):
@@ -65,6 +65,30 @@ class TestCart2Sph(unittest.TestCase):
             with self.subTest(point=point):
                 result = cart2sph(point)
                 np.testing.assert_allclose(result, expected_result, atol=1e-6)
+
+
+class TestMpmathTransforms(unittest.TestCase):
+    def test_sph2cart_mpmath_single_point_list_input(self):
+        result = sph2cart_mpmath([1, 0, 0])
+
+        self.assertEqual(result.shape, (3,))
+        assert_allclose(np.asarray(result, dtype=float), [1, 0, 0], atol=1e-12)
+
+    def test_cart2sph_mpmath_origin_single_point(self):
+        result = cart2sph_mpmath([0, 0, 0])
+
+        self.assertEqual(result.shape, (3,))
+        assert_allclose(np.asarray(result, dtype=float), [0, 0, 0], atol=1e-12)
+
+    def test_cart2sph_mpmath_batch_handles_origin(self):
+        result = cart2sph_mpmath([[0, 0, 0], [1, 0, 0]])
+
+        self.assertEqual(result.shape, (2, 3))
+        assert_allclose(
+            np.asarray(result, dtype=float),
+            [[0, 0, 0], [1, 0, 0]],
+            atol=1e-12,
+        )
 
 
 class TestSph2Cyl(unittest.TestCase):

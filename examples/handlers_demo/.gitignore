@@ -1,0 +1,5 @@
+# Generated simulation run directory — created by run_demo.sh
+sim_run/
+
+# Any stale top-level output directory
+output/

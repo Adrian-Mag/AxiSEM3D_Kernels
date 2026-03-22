@@ -4,11 +4,9 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from ..aux.coordinate_transforms import sph2cart, cart2sph
 from ..aux.helper_functions import find_range
-from mayavi import mlab
 from scipy.spatial import ConvexHull
 from matplotlib import cm
 from scipy import stats
-from tvtk.util import ctf
 import matplotlib
 
 class Mesh(ABC):
@@ -286,6 +284,7 @@ class SphereMesh:
         z = self.radius * np.sin(self.points[:, 0])
 
         # Create a new figure
+        from mayavi import mlab  # noqa: PLC0415 – deferred: requires display
         mlab.figure(size=(600, 600))
 
         # Plot the points
@@ -334,6 +333,7 @@ class SphereMesh:
             vmin, vmax = cbar_range
 
         cmap = matplotlib.cm.get_cmap('RdBu_r')
+        from mayavi import mlab  # noqa: PLC0415 – deferred: requires display
         mlab.figure(bgcolor=(1, 1, 1))
         my_triangular_mesh = mlab.triangular_mesh(x, y, z, triangles, scalars=data, vmin=vmin, vmax=vmax)
         my_triangular_mesh.module_manager.scalar_lut_manager.lut.table = matplotlib_to_mayavi(cmap)

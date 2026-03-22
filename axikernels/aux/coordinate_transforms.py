@@ -13,6 +13,9 @@ def sph2cart(points: np.ndarray) -> np.ndarray:
         np.ndarray: An array containing the Cartesian coordinates [x, y, z] for
         each input point.
     """
+    points = np.asarray(points, dtype=float)
+    single_point = points.ndim == 1
+    points = np.atleast_2d(points)
     rad, lat, lon = points.T  # Transpose to access each coordinate separately
 
     if np.any(rad < 0):
@@ -24,6 +27,8 @@ def sph2cart(points: np.ndarray) -> np.ndarray:
     z = rad * np.sin(lat)
 
     cartesian_coords = np.array([x, y, z]).T  # Transpose back to shape (N, 3)
+    if single_point:
+        return cartesian_coords.squeeze()
     return cartesian_coords
 
 
@@ -42,18 +47,30 @@ def sph2cart_mpmath(points: np.ndarray, precision=64) -> np.ndarray:
     """
     mpmath.mp.dps = precision  # Set the decimal places for mpmath
 
+    points = np.asarray(points, dtype=float)
+    single_point = points.ndim == 1
+    points = np.atleast_2d(points)
     rad, lat, lon = points.T  # Transpose to access each coordinate separately
 
     if np.any(rad < 0):
         raise ValueError("Radius must be non-negative.")
 
-    # Convert and process each element using mpmath
-    cos_lat = np.array([mpmath.cos(val) for val in lat])
-    x = rad * cos_lat * np.array([mpmath.cos(val) for val in lon])
-    y = rad * cos_lat * np.array([mpmath.sin(val) for val in lon])
-    z = rad * np.array([mpmath.sin(val) for val in lat])
+    x = np.array([
+        mpmath.mpf(radius) * mpmath.cos(latitude) * mpmath.cos(longitude)
+        for radius, latitude, longitude in zip(rad, lat, lon)
+    ], dtype=object)
+    y = np.array([
+        mpmath.mpf(radius) * mpmath.cos(latitude) * mpmath.sin(longitude)
+        for radius, latitude, longitude in zip(rad, lat, lon)
+    ], dtype=object)
+    z = np.array([
+        mpmath.mpf(radius) * mpmath.sin(latitude)
+        for radius, latitude in zip(rad, lat)
+    ], dtype=object)
 
     cartesian_coords = np.array([x, y, z]).T  # Transpose back to shape (N, 3)
+    if single_point:
+        return cartesian_coords.squeeze()
     return cartesian_coords
 
 
@@ -74,17 +91,19 @@ def cart2sph(points: np.ndarray) -> np.ndarray:
             - lat (float): The latitude in radians.
             - lon (float): The longitude in radians.
     """
+    points = np.asarray(points, dtype=float)
+    single_point = points.ndim == 1
+    points = np.atleast_2d(points)
+
     # Extract x, y, z coordinates from the input array
-    try:
-        x, y, z = points[:, 0], points[:, 1], points[:, 2]
-    except Exception:
-        x, y, z = points[0], points[1], points[2]
+    x, y, z = points[:, 0], points[:, 1], points[:, 2]
 
     # Calculate radius
     radius = np.sqrt(x**2 + y**2 + z**2)
 
-    # Calculate inclination angle (theta)
-    inclination = np.arcsin(z / radius)
+    # Calculate inclination angle (theta); origin maps to 0
+    with np.errstate(invalid='ignore'):
+        inclination = np.where(radius == 0, 0.0, np.arcsin(z / radius))
 
     # Calculate azimuthal angle (phi)
     azimuth = np.arctan2(y, x)
@@ -92,6 +111,8 @@ def cart2sph(points: np.ndarray) -> np.ndarray:
     # Combine the spherical coordinates into a single ndarray
     spherical_coords = np.column_stack((radius, inclination, azimuth))
 
+    if single_point:
+        return spherical_coords.squeeze()
     return spherical_coords
 
 
@@ -116,28 +137,35 @@ def cart2sph_mpmath(points: np.ndarray, precision=64) -> np.ndarray:
     """
     mpmath.mp.dps = precision  # Set the decimal places for mpmath
 
+    points = np.asarray(points, dtype=float)
+    single_point = points.ndim == 1
+    points = np.atleast_2d(points)
+
     # Extract x, y, z coordinates from the input array
-    try:
-        x, y, z = points[:, 0], points[:, 1], points[:, 2]
-    except Exception:
-        x, y, z = points[0], points[1], points[2]
+    x, y, z = points[:, 0], points[:, 1], points[:, 2]
 
     # Calculate radius using mpmath
-    radius = np.array([mpmath.sqrt(val) for val in x**2 + y**2 + z**2])
+    radius = np.array([
+        mpmath.sqrt(x_val ** 2 + y_val ** 2 + z_val ** 2)
+        for x_val, y_val, z_val in zip(x, y, z)
+    ], dtype=object)
 
     # Calculate inclination angle (theta) using mpmath
     inclination = np.array([
-        mpmath.asin(val / radius[i]) for i, val in enumerate(z)
-    ])
+        mpmath.mpf("0.0") if rad == 0 else mpmath.asin(z_val / rad)
+        for z_val, rad in zip(z, radius)
+    ], dtype=object)
 
     # Calculate azimuthal angle (phi) using mpmath
     azimuth = np.array([
-        mpmath.atan2(y[i], x[i]) for i in range(len(x))
-    ])
+        mpmath.atan2(y_val, x_val) for x_val, y_val in zip(x, y)
+    ], dtype=object)
 
     # Combine the spherical coordinates into a single ndarray
     spherical_coords = np.column_stack((radius, inclination, azimuth))
 
+    if single_point:
+        return spherical_coords.squeeze()
     return spherical_coords
 
 

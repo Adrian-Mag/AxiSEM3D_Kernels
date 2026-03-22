@@ -10,11 +10,31 @@ import matplotlib.pyplot as plt
 import os
 from tqdm import tqdm
 import random
-from mayavi import mlab
 from scipy.interpolate import interp2d
 from scipy.interpolate import RectBivariateSpline
-from mpl_toolkits.basemap import Basemap
 from matplotlib import cm
+
+
+def _require_mlab():
+    try:
+        from mayavi import mlab
+    except ImportError as exc:
+        raise ImportError(
+            "mayavi is required for Kernel visualization methods."
+        ) from exc
+
+    return mlab
+
+
+def _require_basemap():
+    try:
+        from mpl_toolkits.basemap import Basemap
+    except ImportError as exc:
+        raise ImportError(
+            "basemap is required for Kernel visualization methods."
+        ) from exc
+
+    return Basemap
 
 
 class Kernel():
@@ -408,6 +428,7 @@ class Kernel():
         # number of points
         colors_reshaped = colors.reshape(-1, 4)
 
+        mlab = _require_mlab()
         mlab.figure(bgcolor=(0, 0, 0))
         # Plot interpolated_kernel
         interpolated_kernel_surface = mlab.mesh(X_disc, Y_disc, Z_disc,
@@ -417,8 +438,9 @@ class Kernel():
         interpolated_kernel_surface.module_manager.scalar_lut_manager.lut.table = colors_reshaped # noqa
 
         # Create Basemap instance
+        Basemap = _require_basemap()
         m = Basemap(projection='cyl', llcrnrlat=-90, urcrnrlat=90,
-                    llcrnrlon=-180, urcrnrlon=180, resolution='c')
+                llcrnrlon=-180, urcrnrlon=180, resolution='c')
 
         """  # Plot continent contours
         m.drawcoastlines(linewidth=0.5)

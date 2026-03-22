@@ -1,7 +1,6 @@
 from obspy import read, read_events, read_inventory
 import fnmatch
 import os
-import sys
 
 
 class ObspyfiedOutput:
@@ -36,11 +35,9 @@ class ObspyfiedOutput:
     def _find_inv_files(self, obspyfied_path):
         inv_files = self.search_files(obspyfied_path, 'inv.xml')
         if len(inv_files) > 1:
-            raise FileExistsError('Multiple mseed files were found')
-            sys.exit(1)
+            raise FileExistsError('Multiple inv.xml files were found')
         elif len(inv_files) == 0:
-            raise FileNotFoundError('No mseed files were found')
-            sys.exit(1)
+            raise FileNotFoundError('No inv.xml files were found')
         else:
             inv_file_path = inv_files[0]
         return inv_file_path
@@ -48,11 +45,9 @@ class ObspyfiedOutput:
     def _find_cat_files(self, obspyfied_path):
         cat_files = self.search_files(obspyfied_path, 'cat.xml')
         if len(cat_files) > 1:
-            raise FileExistsError('Multiple mseed files were found')
-            sys.exit(1)
+            raise FileExistsError('Multiple cat.xml files were found')
         elif len(cat_files) == 0:
-            raise FileNotFoundError('No mseed files were found')
-            sys.exit(1)
+            raise FileNotFoundError('No cat.xml files were found')
         else:
             cat_file_path = cat_files[0]
         return cat_file_path
@@ -61,10 +56,8 @@ class ObspyfiedOutput:
         mseed_files = self.search_files(obspyfied_path, '.mseed')
         if len(mseed_files) > 1:
             raise FileExistsError('Multiple mseed files were found')
-            sys.exit(1)
         elif len(mseed_files) == 0:
             raise FileNotFoundError('No mseed files were found')
-            sys.exit(1)
         else:
             mseed_file_path = mseed_files[0]
         return mseed_file_path

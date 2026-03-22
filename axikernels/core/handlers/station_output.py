@@ -28,6 +28,10 @@ class StationOutput(AxiSEM3DOutput):
         self.station_group_name = os.path.basename(path_to_station_output)
         # Load output files
         self._files = self._load_files()
+        if not self._files:
+            raise FileNotFoundError(
+                f"No station output files found in {path_to_station_output}"
+            )
         # Load netcdf data as Datasets
         self._nc_data = self._load_netcdf_datasets()
         # read the rank list file
@@ -146,11 +150,11 @@ class StationOutput(AxiSEM3DOutput):
         else:
             channel_indices = np.arange(len(self.detailed_channels))
         if time_limits is not None:
-            if (np.min(self.data_time) < time_limits[0] and
-                    np.max(self.data_time) > time_limits[1]):
+            if (np.min(self.data_time) <= time_limits[0] and
+                    np.max(self.data_time) >= time_limits[1]):
                 # Find the indices of elements between t_min and t_max
                 indices = np.where((self.data_time >= time_limits[0]) &
-                                   (self.data_time <= time_limits[1]))
+                                   (self.data_time <= time_limits[1]))[0]
             else:
                 raise Exception('Times must be between: ' +
                                 str(min(self.data_time)) +
@@ -207,18 +211,13 @@ class StationOutput(AxiSEM3DOutput):
             for chn_index, chn in enumerate(selected_detailed_channels):
                 if location == '':
                     # extract data
-                    try:
-                        wavefield_data = self.load_data_at_station(
-                            network, station_name, channels, time_limits
-                            )
-                    except Exception:
-                        wavefield_data = self.load_data_at_station(
-                            network, station_name, channels, time_limits
-                            )
+                    wavefield_data = self.load_data_at_station(
+                        network, station_name, channels, time_limits
+                        )
                     # form obspy trace
                     trace = obspy.Trace(np.ascontiguousarray(wavefield_data[chn_index]))
                     trace.stats.delta = delta
-                    trace.stats.ntps = npts
+                    trace.stats.npts = npts
                     trace.stats.network = network
                     trace.stats.station = station_name
                     trace.stats.location = location
@@ -233,12 +232,12 @@ class StationOutput(AxiSEM3DOutput):
                     # form obspy trace
                     trace = obspy.Trace(np.ascontiguousarray(wavefield_data[chn_index]))
                     trace.stats.delta = delta
-                    trace.stats.ntps = npts
+                    trace.stats.npts = npts
                     trace.stats.network = network
                     trace.stats.station = station_name
                     trace.stats.location = location
                     trace.stats.channel = chn
-                    trace.stats.starttime = self.starttime
+                    trace.stats.starttime = self._starttime
                     stream.append(trace)
 
         return stream
@@ -308,13 +307,14 @@ class StationOutput(AxiSEM3DOutput):
         Returns:
             obspy.Stream: ObsPy Stream object containing the data
         """
-        station_key_list = self._rank_list['STATION_KEY'].tolist()[1:-1]
+        station_key_list = self._rank_list['STATION_KEY'].tolist()
 
         # Extract the string before and after the dot
         networks = [key.split(".")[0] for key in station_key_list]
         stations = [key.split(".")[1] for key in station_key_list]
 
-        return self.stream(networks, stations)
+        return self.stream(networks, stations, channels=channels,
+                           time_limits=time_limits)
 
     @property
     def inventory(self):
@@ -331,10 +331,12 @@ class StationOutput(AxiSEM3DOutput):
                 networks=[],
                 source="Inventory from AxiSEM3D STATIONS file")
 
-            # Open station file
+            # Open station file.
+            # header=None so that ALL data rows are included; the single
+            # comment line ("#name network …") is filtered by comment='#'.
             stations = (pd.read_csv(self._stations_file_path,
                         sep=r'\s+',
-                        header=1,
+                        header=None,
                         names=["name",
                             "network",
                             "latitude",

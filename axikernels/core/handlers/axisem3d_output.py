@@ -53,7 +53,7 @@ class AxiSEM3DOutput:
         # We give a name to the simulation
         self.simulation_name = os.path.basename(self.path_to_simulation)
         # Info about the source
-        self._stored_catalogue = self._find_catalogue()[0]
+        self._stored_catalogue = self._find_catalogue()
         # Info about model (currently only for global models)
         if path_to_base_model is None:
             # We search for a bm file in the input folder
@@ -176,10 +176,10 @@ class AxiSEM3DOutput:
             return read_events(catalogues[0])
         elif len(catalogues) == 0:
             print('No catalogues were found.')
-            return (None, 1)
+            return None
         else:
             print('Multiple catalogues were found, therefore we abort.')
-            return (None, 2)
+            return None
 
     def _find_outputs(self):
         """

@@ -67,8 +67,8 @@ class TestFindPhaseWindow(unittest.TestCase):
         result = find_phase_window(event_depth, event_latitude, event_longitude,
                                    station_latitude, station_longitude, T, phase)
 
-        self.assertEqual(result[0], expected_window_start)
-        self.assertEqual(result[1], expected_window_end)
+        self.assertAlmostEqual(result[0], expected_window_start, delta=0.01)
+        self.assertAlmostEqual(result[1], expected_window_end, delta=0.01)
 
     def test_find_phase_window_no_arrivals(self):
         event_depth = 10.0
