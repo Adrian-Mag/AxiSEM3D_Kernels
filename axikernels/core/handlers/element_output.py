@@ -487,7 +487,7 @@ class ElementOutput(AxiSEM3DOutput):
                   channels: list, time_slices: list = None,
                   frame: str = 'geographic',
                   coords: str = 'spherical', in_deg: bool = True,
-                  batch_size: int = 1000):
+                  batch_size: int = 1000, pbar=None):
         # Only options for coords are geographic+spherical,
         # geographic+cartesian, source+cylindrical and source+spherical
 
@@ -528,8 +528,11 @@ class ElementOutput(AxiSEM3DOutput):
                                                                                 channel_slices, time_slices) """
 
         # Interpolate all groups
-        with tqdm(total=len(points), desc="Loading and interpolating",
-                  unit="point") as pbar:
+        _own_pbar = pbar is None
+        if _own_pbar:
+            pbar = tqdm(total=len(points), desc="Loading and interpolating",
+                        unit="point")
+        try:
             for group_index, element_group in enumerate(
                              self.element_groups_info):
                 # These two lines pick only the points that are in the current
@@ -566,6 +569,14 @@ class ElementOutput(AxiSEM3DOutput):
                             group_points_batch_residue, element_group,
                             channel_slices, time_slices, pbar
                         )
+            # Advance bar for points that fell outside all element groups
+            # (they stay NaN in final_result, but the bar must reach 100%).
+            n_oob = int(np.sum(point_group_mapping == -1))
+            if n_oob:
+                pbar.update(n_oob)
+        finally:
+            if _own_pbar:
+                pbar.close()
 
         return final_result
 
@@ -1091,8 +1102,11 @@ class ElementOutput(AxiSEM3DOutput):
         # open files
         nc_files = []
         for nc_fname in nc_fnames:
-            nc_files.append(xr.open_dataset(os.path.join(path_to_element_group,
-                                                         nc_fname)))
+            fpath = os.path.join(path_to_element_group, nc_fname)
+            try:
+                nc_files.append(xr.open_dataset(fpath))
+            except OSError:
+                nc_files.append(xr.open_dataset(fpath, engine='h5netcdf'))
 
         # Variables that are the same in the datasets
         # Read Na grid (all azimuthal dimensions)

@@ -1,6 +1,6 @@
 # axikernels Kernel — Living Reference
 
-_Last updated: interpolation-repair Phase 6_
+_Last updated: 3D Kernel Example Phase 1_
 
 ---
 
@@ -118,7 +118,7 @@ Kernel(forward_obj: ElementOutput, backward_obj: ElementOutput)
 | Method | Description |
 |--------|-------------|
 | `evaluate_K_dv(points, radius)` | Volumetric-geometry kernel at `radius`. Dispatches on `SS`/`FS`/`SF` discontinuity type. |
-| `evaluate_K_dn(points, radius)` | Normal-displacement kernel at `radius`. **Phase 5 bug fix:** FS and SF branches now squeeze P arrays to `(N, T)` → correct flip axis (1 not 2), correct `np.interp` sources, correct integrand `factor[:, np.newaxis] * P_fwd * P_bwd`. |
+| `evaluate_K_dn(points, radius)` | Normal-displacement kernel at `radius`. **Phase 5 bug fix:** FS and SF branches now squeeze P arrays to `(N, T)` → correct flip axis (1 not 2), correct `np.interp` sources, correct integrand `factor[:, np.newaxis] * P_fwd * P_bwd`. **Channel-order bug fix (post Phase 6):** All three branches (SS, FS, SF) now load forward gradient channels as `['GZR', 'GZZ', 'GZT']`, matching backward loads. Previously forward used `['GZR', 'GZT', 'GZZ']` (T and Z swapped), corrupting the traction-gradient cross-products and producing near-zero kernels. |
 | `evaluate_Kd(points, radius)` | Total discontinuity kernel = `K_dn + K_dv`. |
 | `evaluate_SS(points, radius)` | Solid–solid discontinuity kernel. |
 | `evaluate_CMB_solid(points, radius)` | CMB kernel contribution from the solid side. |
@@ -207,6 +207,42 @@ All tests are pure `inspect.getsource` checks — no real simulation data requir
 | `test_no_coordinate_frame_attribute` | Bug 6: `forward_data.coordinate_frame` → metadata path |
 | `test_evaluate_objective_passes_coord_in_deg` | Bug 7: `coord_in_deg=True` added to `stream()` |
 | `test_rotation_method_name` | Bug 8: `totation` typo → `rotation` |
+
+---
+
+## 3D example: `adrian_kernel_3D`
+
+Location: `axisem3d_root/AxiSEM3D/examples/adrian_kernel_3D/`
+
+### Preprocessing scripts
+
+| Script | Output | Description |
+|--------|--------|-------------|
+| `create_moho_topography.py` | `input_forward/moho_topography.nc` | Gaussian Moho undulation (5 km amplitude, centre 0°N/20°E) for `StructuredGridG3D`. |
+| `convert_s362ani_to_radius.py` | `input_forward/S362ANI_radius.nc` | S362ANI converted from depth (km) to radius (m), axis flipped to monotonically increasing, for `StructuredGridV3D`. |
+
+### NetCDF variable conventions
+
+**`moho_topography.nc`:**
+- `latitude` (degrees_north, shape 181), `longitude` (degrees_east, shape 361)
+- `undulation_MOHO` (m, shape 181×361) — Gaussian, max ≈ 5000 m
+
+**`S362ANI_radius.nc`:**
+- `radius` (m, shape 25, monotonically increasing 3 481 000 → 6 346 000)
+- `latitude` (degrees, shape 91), `longitude` (degrees, shape 181)
+- `dvs`, `dvsv`, `dvsh` (percent, shape 25×91×181)
+
+### `inparam.model.yaml` key parameters
+- `MOHO_TOPOGRAPHY` (StructuredGridG3D) must be listed **before** `EMC_S362ANI`
+- `undulation_range.interface`: 6346600 m (PREM Moho)
+- `EMC_S362ANI` uses `undulated_geometry: true` so it follows the deformed Moho
+
+### Tests (in `axikernels/tests/`)
+
+| File | Tests |
+|------|-------|
+| `test_create_moho_topo.py` | 8 tests: file exists, variables, lat/lon range, max undulation ≈5000 m, near-zero at pole |
+| `test_convert_s362ani.py` | 8 tests: file exists, `radius` not `depth`, monotonically increasing, value correctness, data shape |
 
 ---
 

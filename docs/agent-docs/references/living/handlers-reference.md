@@ -81,6 +81,7 @@ Subclass of `AxiSEM3DOutput`. Handles 2-D mesh-slice element output.
 ElementOutput(path_to_element_group: str)
 ```
 - `path_to_element_group` must be `<sim>/output/elements/<group_name>/`
+- **h5netcdf fallback (post Phase 8):** `_read_element_metadata` now catches `OSError` from `xr.open_dataset()` and retries with `engine='h5netcdf'`. This handles HDF5 library version mismatches between the `netcdf4` C library and the file format.
 
 **Key methods:**
 
