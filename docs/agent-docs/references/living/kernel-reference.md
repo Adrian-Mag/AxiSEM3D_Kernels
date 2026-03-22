@@ -1,6 +1,6 @@
 # axikernels Kernel — Living Reference
 
-_Last updated: 3D Kernel Example Phase 1_
+_Last updated: 3D Kernel Example Phase 2_
 
 ---
 
@@ -277,3 +277,34 @@ for i in range(N):
 # Integrand needs factor[:, np.newaxis] for (N,) × (N,T):
 integrand = factor[:, np.newaxis] * P_fwd_interp * P_bwd_interp
 ```
+
+---
+
+## Example Driver Scripts
+
+### `compute_kernels.py` (1D companion)
+Location: `examples/adrian_kernel_companion/compute_kernels.py`
+
+End-to-end driver for 1D kernel example. Generates backward simulation, evaluates vp kernel and Moho boundary kernel (`Kd = K_dn + K_dv`).
+
+**Key constants:**
+- `MOHO_RADIUS = 6_346_600.0` m (PREM Moho, depth 24.4 km)
+
+**Outputs:** `vp_kernel.h5`, `vp_kernel.png`, `moho_kd.h5`, `moho_kd.png`
+
+### `compute_kernels_3D.py` (3D companion) — **Added Phase 2**
+Location: `examples/adrian_kernel_3D/compute_kernels_3D.py`
+
+Adapted from `compute_kernels.py`. Identical kernel math (element output is in reference coordinates; `MOHO_RADIUS` constant is still correct for 3D runs). Key addition: `--topography` argument to overlay Moho undulation contours on the boundary kernel plot.
+
+**New argument:**
+- `--topography FILE` — path to Moho topography NetCDF (default: `input_forward/moho_topography.nc`). Used for visualisation only; does not affect kernel computation.
+
+**Topography overlay behaviour:**
+- Loads `latitude`, `longitude`, `undulation_MOHO` from NetCDF.
+- Subsets to the kernel lon/lat window ± 1°.
+- Draws contour lines (black, 6 levels) with km labels via `ax.clabel`.
+- Silently skips the overlay if the file does not exist or fails to load.
+- Appends `" + Moho topo contours"` to the plot title when overlay is applied.
+
+**Tests:** `axikernels/tests/test_compute_kernels_3D_args.py` — 13 argument-parsing tests (defaults + custom `--topography`).
