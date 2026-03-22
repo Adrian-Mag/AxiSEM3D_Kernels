@@ -135,28 +135,29 @@ def test_data_shape(nc_file, src_data):
 def test_data_values_match_original(nc_file, src_data):
     """
     A specific (lat, lon) slice at the shallowest depth in the converted file
-    must equal the same slice in the original shallowest depth layer.
+    must equal the same slice in the original shallowest depth layer,
+    divided by 100 (percent → fractional conversion).
 
     Original layer 0 (depth=25 km → radius=6346000 m) becomes the last
     layer in the converted file after flipping.
     """
-    dvs_src = src_data["dvs"]   # shape (25, 91, 181)
+    dvs_src = src_data["dvs"]   # shape (25, 91, 181), in percent
 
     with nc.Dataset(nc_file, "r") as ds:
-        dvs_out = ds["dvs"][:].data  # shape (25, 91, 181)
+        dvs_out = ds["dvs"][:].data  # shape (25, 91, 181), in fractional
 
     # Original depth[0] = 25 km → converted radius[-1] = 6346000 m
     npt.assert_allclose(
-        dvs_out[-1, :, :],   # shallowest in converted (was depth index 0)
-        dvs_src[0,  :, :],   # original depth index 0
+        dvs_out[-1, :, :],         # shallowest in converted (was depth index 0)
+        dvs_src[0,  :, :] / 100.0, # original depth index 0, converted to fractional
         rtol=1e-9,
         err_msg="Shallowest layer values do not match between original and converted",
     )
 
     # Original depth[-1] = 2890 km → converted radius[0] = 3481000 m
     npt.assert_allclose(
-        dvs_out[0,  :, :],   # deepest in converted
-        dvs_src[-1, :, :],   # original deepest depth
+        dvs_out[0,  :, :],          # deepest in converted
+        dvs_src[-1, :, :] / 100.0,  # original deepest depth, converted to fractional
         rtol=1e-9,
         err_msg="Deepest layer values do not match between original and converted",
     )
